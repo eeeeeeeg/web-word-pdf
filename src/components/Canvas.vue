@@ -6,7 +6,11 @@
         v-for="(page, pageIndex) in schema.pages"
         :key="page.id"
         class="page-wrapper"
-        :class="{ 'current-page': pageIndex === schema.currentPageIndex }"
+        :class="{
+          'current-page':
+            pageIndex === schema.currentPageIndex && mode === 'edit',
+          'preview-mode': mode === 'preview',
+        }"
       >
         <!-- 页面标题栏 -->
         <div
@@ -374,6 +378,16 @@ export default {
 .page-wrapper.current-page .page {
   box-shadow: 0 8px 30px rgba(24, 144, 255, 0.3);
   border: 2px solid #1890ff;
+}
+
+/* 预览模式样式 */
+.page-wrapper.preview-mode {
+  transform: none;
+}
+
+.page-wrapper.preview-mode .page {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
 }
 
 .page-title-bar {

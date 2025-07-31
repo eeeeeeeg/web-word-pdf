@@ -234,7 +234,7 @@ export default {
   computed: {
     layoutStyle() {
       const style = this.component.style;
-      return {
+      const baseStyle = {
         display: "flex",
         alignItems: "stretch",
         justifyContent: this.component.alignment || "flex-start",
@@ -242,6 +242,17 @@ export default {
         padding: `${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px`,
         minHeight: "60px",
       };
+
+      // 预览模式下去除边框和背景色
+      if (this.mode === "preview") {
+        return {
+          ...baseStyle,
+          border: "none",
+          background: "transparent",
+        };
+      }
+
+      return baseStyle;
     },
 
     textStyle() {
@@ -362,12 +373,27 @@ export default {
     },
 
     getColumnStyle(column) {
-      return {
+      const baseStyle = {
         flex: `0 0 ${column.width}%`,
         minHeight: "60px",
-        border: this.mode === "edit" ? "1px dashed #e0e0e0" : "none",
         padding: "8px",
         position: "relative",
+      };
+
+      // 预览模式下完全去除边框
+      if (this.mode === "preview") {
+        return {
+          ...baseStyle,
+          border: "none",
+          minHeight: "auto",
+          padding: "0",
+        };
+      }
+
+      // 编辑模式下显示虚线边框
+      return {
+        ...baseStyle,
+        border: "1px dashed #e0e0e0",
       };
     },
 
@@ -617,6 +643,15 @@ export default {
   outline-offset: 2px;
 }
 
+/* 预览模式下禁用hover和选中效果 */
+.canvas-component.preview-mode:hover {
+  outline: none;
+}
+
+.canvas-component.preview-mode.selected {
+  outline: none;
+}
+
 /* 布局组件选中时的特殊样式 */
 .canvas-component.layout-component-wrapper.selected .layout-component {
   background-color: rgba(24, 144, 255, 0.05);
@@ -625,6 +660,18 @@ export default {
 
 .canvas-component.layout-component-wrapper.selected .layout-column {
   border-color: #1890ff;
+}
+
+/* 预览模式下禁用布局组件的选中样式 */
+.canvas-component.layout-component-wrapper.preview-mode.selected
+  .layout-component {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+.canvas-component.layout-component-wrapper.preview-mode.selected
+  .layout-column {
+  border: none !important;
 }
 
 .canvas-component.preview-mode {
@@ -672,6 +719,18 @@ export default {
   border: 1px solid #f0f0f0;
   border-radius: 4px;
   background: rgba(248, 248, 248, 0.3);
+}
+
+/* 预览模式下的布局组件样式 */
+.canvas-component.preview-mode .layout-component {
+  border: none !important;
+  background: transparent !important;
+  border-radius: 0;
+}
+
+.canvas-component.preview-mode .layout-column {
+  border: none !important;
+  background: transparent !important;
 }
 
 .layout-column {
