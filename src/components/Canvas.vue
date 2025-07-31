@@ -75,6 +75,9 @@
               @update="update"
               @delete="$emit('component-delete', component.id)"
               @drop="(data) => handleComponentDrop(data, pageIndex)"
+              @drop-adjacent="
+                (data) => handleComponentDropAdjacent(data, pageIndex)
+              "
               @sort="(data) => handleComponentSort(data, pageIndex)"
               @move="(data) => handleComponentMove(data, pageIndex)"
             />
@@ -251,6 +254,10 @@ export default {
 
     handleComponentDrop(dropData, pageIndex) {
       this.$emit("component-drop", { ...dropData, pageIndex });
+    },
+
+    handleComponentDropAdjacent(dropData, pageIndex) {
+      this.$emit("component-drop-adjacent", { ...dropData, pageIndex });
     },
 
     handleComponentSort(sortData, pageIndex) {

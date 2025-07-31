@@ -13,10 +13,10 @@
     :draggable="mode === 'edit' && component.type !== 'text'"
     @dragstart="component.type !== 'text' ? handleDragStart : null"
     @dragend="component.type !== 'text' ? handleDragEnd : null"
-    @dragover="component.type !== 'text' ? handleSortDragOver : null"
-    @drop="component.type !== 'text' ? handleSortDrop : null"
-    @dragenter="component.type !== 'text' ? handleSortDragEnter : null"
-    @dragleave="component.type !== 'text' ? handleSortDragLeave : null"
+    @dragover="handleSortDragOver"
+    @drop="handleSortDrop"
+    @dragenter="handleSortDragEnter"
+    @dragleave="handleSortDragLeave"
   >
     <!-- 布局组件 -->
     <div
@@ -414,10 +414,15 @@ export default {
           event.dataTransfer.getData("application/json")
         );
         if (componentData) {
+          // 检查是否尝试将布局组件拖拽到布局组件内部
+          if (componentData.type === "layout") {
+            console.warn("不允许将布局组件拖拽到布局组件内部");
+            return;
+          }
+
           componentData.columnIndex = columnIndex;
 
           // 不直接修改 prop，而是通过事件通知父组件
-
           this.$emit("drop", {
             component: componentData,
             targetContainer: this.component,
@@ -558,6 +563,7 @@ export default {
     handleDragStart(event) {
       if (this.mode !== "edit") return;
 
+      console.log("拖拽开始:", this.component.id, this.component.type);
       this.isDragging = true;
       // 使用专门的数据类型来区分排序拖拽和组件库拖拽
       event.dataTransfer.setData("text/sort-component-id", this.component.id);
@@ -570,6 +576,9 @@ export default {
     },
 
     handleSortDragOver(event) {
+      // 只在编辑模式下处理拖拽
+      if (this.mode !== "edit") return;
+
       event.preventDefault();
       event.stopPropagation();
 
@@ -577,20 +586,37 @@ export default {
       const sortType = event.dataTransfer.types.includes(
         "text/sort-component-id"
       );
-      if (sortType) {
-        const draggedId = event.dataTransfer.getData("text/sort-component-id");
-        if (draggedId && draggedId !== this.component.id) {
-          event.dataTransfer.dropEffect = "move";
 
-          // 计算拖拽位置
-          const rect = event.currentTarget.getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          this.dragOverPosition = event.clientY < midY ? "before" : "after";
-        }
+      // 检查是否是组件库拖拽
+      const libraryDragType =
+        event.dataTransfer.types.includes("application/json");
+
+      if (sortType && this.component.type !== "text") {
+        // 对于排序拖拽，允许在任何非文本组件上显示拖拽位置
+        event.dataTransfer.dropEffect = "move";
+
+        // 计算拖拽位置
+        const rect = event.currentTarget.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const newPosition = event.clientY < midY ? "before" : "after";
+
+        console.log("拖拽悬停:", this.component.id, newPosition);
+        this.dragOverPosition = newPosition;
+      } else if (libraryDragType && this.component.type === "layout") {
+        // 允许从组件库拖拽到布局组件的前后位置
+        event.dataTransfer.dropEffect = "copy";
+
+        // 计算拖拽位置
+        const rect = event.currentTarget.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        this.dragOverPosition = event.clientY < midY ? "before" : "after";
       }
     },
 
     handleSortDrop(event) {
+      // 只在编辑模式下处理拖拽
+      if (this.mode !== "edit") return;
+
       event.preventDefault();
       event.stopPropagation();
 
@@ -598,8 +624,22 @@ export default {
       const sortType = event.dataTransfer.types.includes(
         "text/sort-component-id"
       );
-      if (sortType) {
+
+      // 检查是否是组件库拖拽
+      const libraryDragType =
+        event.dataTransfer.types.includes("application/json");
+
+      if (sortType && this.component.type !== "text") {
         const draggedId = event.dataTransfer.getData("text/sort-component-id");
+        console.log(
+          "拖拽放置:",
+          draggedId,
+          "到",
+          this.component.id,
+          "位置:",
+          this.dragOverPosition
+        );
+
         if (draggedId && draggedId !== this.component.id) {
           this.$emit("sort", {
             draggedComponentId: draggedId,
@@ -607,17 +647,46 @@ export default {
             position: this.dragOverPosition,
           });
         }
+      } else if (libraryDragType && this.component.type === "layout") {
+        // 处理从组件库拖拽到布局组件前后位置
+        try {
+          const componentData = JSON.parse(
+            event.dataTransfer.getData("application/json")
+          );
+          if (componentData) {
+            // 检查是否尝试将布局组件拖拽到布局组件前后位置
+            if (componentData.type === "layout") {
+              console.warn("不允许将布局组件拖拽到布局组件前后位置");
+              this.dragOverPosition = null;
+              return;
+            }
+
+            this.$emit("drop-adjacent", {
+              component: componentData,
+              targetComponentId: this.component.id,
+              position: this.dragOverPosition,
+            });
+          }
+        } catch (error) {
+          console.error("Failed to parse dropped component data:", error);
+        }
       }
 
       this.dragOverPosition = null;
     },
 
     handleSortDragEnter(event) {
+      // 只在编辑模式下处理拖拽
+      if (this.mode !== "edit") return;
+
       event.preventDefault();
       event.stopPropagation();
     },
 
     handleSortDragLeave(event) {
+      // 只在编辑模式下处理拖拽
+      if (this.mode !== "edit") return;
+
       // 只有当离开当前元素时才清除位置
       if (!event.currentTarget.contains(event.relatedTarget)) {
         this.dragOverPosition = null;

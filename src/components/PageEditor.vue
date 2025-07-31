@@ -115,6 +115,7 @@
             :selected-component="selectedComponent"
             @component-select="handleComponentSelect"
             @component-drop="handleComponentDrop"
+            @component-drop-adjacent="handleComponentDropAdjacent"
             @component-update="handleComponentUpdate"
             @component-delete="handleComponentDelete"
             @component-sort="handleComponentSort"
@@ -302,6 +303,52 @@ export default {
       this.markAsChanged();
     },
 
+    handleComponentDropAdjacent(dropData) {
+      // 处理组件拖拽到布局组件前后位置
+      const { component, targetComponentId, position, pageIndex } = dropData;
+      const targetPage =
+        this.pageSchema.pages[
+          pageIndex !== undefined ? pageIndex : this.pageSchema.currentPageIndex
+        ];
+
+      // 查找目标组件在页面中的位置
+      const targetIndex = targetPage.components.findIndex(
+        (c) => c.id === targetComponentId
+      );
+
+      if (targetIndex !== -1) {
+        // 计算插入位置
+        let insertIndex = targetIndex;
+        if (position === "after") {
+          insertIndex = targetIndex + 1;
+        }
+
+        // 内容组件需要包装在布局组件中
+        if (component.type === "text" || component.type === "image") {
+          const layoutComponent = createComponent(COMPONENT_TYPES.LAYOUT, {
+            preset: "single",
+            columns: LAYOUT_PRESETS.SINGLE_COLUMN.columns,
+            children: [{ ...component, columnIndex: 0 }],
+          });
+          targetPage.components.splice(insertIndex, 0, layoutComponent);
+        } else {
+          // 布局组件直接插入
+          targetPage.components.splice(insertIndex, 0, component);
+        }
+
+        // 如果拖拽到非当前页面，自动切换到目标页面
+        if (
+          pageIndex !== undefined &&
+          pageIndex !== this.pageSchema.currentPageIndex
+        ) {
+          this.pageSchema.currentPageIndex = pageIndex;
+        }
+
+        this.updateTimestamp();
+        this.markAsChanged();
+      }
+    },
+
     handleComponentUpdate(updatedComponent) {
       console.log(
         "PageEditor111: handleComponentUpdate called with:",
@@ -402,6 +449,8 @@ export default {
       const { draggedComponentId, targetComponentId, position, pageIndex } =
         sortData;
 
+      console.log("处理组件排序:", sortData);
+
       // 在指定页面的根级别组件中查找并移动
       const targetPage =
         this.pageSchema.pages[
@@ -414,6 +463,8 @@ export default {
       const targetIndex = components.findIndex(
         (c) => c.id === targetComponentId
       );
+
+      console.log("拖拽索引:", draggedIndex, "目标索引:", targetIndex);
 
       if (draggedIndex !== -1 && targetIndex !== -1) {
         // 移除被拖拽的组件
@@ -428,6 +479,8 @@ export default {
         if (position === "after") {
           newIndex++;
         }
+
+        console.log("最终插入位置:", newIndex);
 
         // 插入到新位置
         components.splice(newIndex, 0, draggedComponent);
