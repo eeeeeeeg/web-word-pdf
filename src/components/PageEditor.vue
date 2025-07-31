@@ -70,6 +70,7 @@
             @component-update="handleComponentUpdate"
             @component-delete="handleComponentDelete"
             @component-sort="handleComponentSort"
+            @component-move="handleComponentMove"
             @page-select="switchPage"
             @page-add="addPage"
             @page-delete="deletePage"
@@ -363,6 +364,41 @@ export default {
         this.updateTimestamp();
         this.markAsChanged();
       }
+    },
+
+    handleComponentMove(moveData) {
+      const { componentId, direction, pageIndex } = moveData;
+
+      // 获取目标页面
+      const targetPage =
+        this.pageSchema.pages[
+          pageIndex !== undefined ? pageIndex : this.pageSchema.currentPageIndex
+        ];
+      const components = targetPage.components;
+
+      // 查找要移动的组件
+      const componentIndex = components.findIndex((c) => c.id === componentId);
+      if (componentIndex === -1) return;
+
+      // 计算新位置
+      let newIndex;
+      if (direction === "up") {
+        newIndex = Math.max(0, componentIndex - 1);
+      } else if (direction === "down") {
+        newIndex = Math.min(components.length - 1, componentIndex + 1);
+      } else {
+        return;
+      }
+
+      // 如果位置没有变化，直接返回
+      if (newIndex === componentIndex) return;
+
+      // 移动组件
+      const component = components.splice(componentIndex, 1)[0];
+      components.splice(newIndex, 0, component);
+
+      this.updateTimestamp();
+      this.markAsChanged();
     },
 
     deleteComponentById(components, id) {

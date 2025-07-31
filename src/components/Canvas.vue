@@ -57,7 +57,7 @@
           <!-- 页面内容区域 -->
           <div class="page-content" :style="contentStyle">
             <CanvasComponent
-              v-for="component in page.components"
+              v-for="(component, componentIndex) in page.components"
               :key="`${component.id}-${component._updateTimestamp || 0}`"
               :component="component"
               :selected="
@@ -65,11 +65,14 @@
               "
               :selected-component="selectedComponent"
               :mode="mode"
+              :index="componentIndex"
+              :total="page.components.length"
               @select="$emit('component-select', component)"
               @update="update"
               @delete="$emit('component-delete', component.id)"
               @drop="(data) => handleComponentDrop(data, pageIndex)"
               @sort="(data) => handleComponentSort(data, pageIndex)"
+              @move="(data) => handleComponentMove(data, pageIndex)"
             />
 
             <!-- 空状态提示 -->
@@ -248,6 +251,10 @@ export default {
 
     handleComponentSort(sortData, pageIndex) {
       this.$emit("component-sort", { ...sortData, pageIndex });
+    },
+
+    handleComponentMove(moveData, pageIndex) {
+      this.$emit("component-move", { ...moveData, pageIndex });
     },
 
     formatFooterContent(content, pageNumber) {

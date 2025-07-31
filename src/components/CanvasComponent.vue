@@ -142,6 +142,26 @@
 
     <!-- 选中状态的操作按钮 -->
     <div v-if="selected && mode === 'edit'" class="component-actions">
+      <!-- 布局组件的排序按钮 -->
+      <template v-if="component.type === 'layout'">
+        <button
+          class="action-btn sort-btn"
+          @click.stop="handleMoveUp"
+          title="向上移动"
+          :disabled="!canMoveUp"
+        >
+          ↑
+        </button>
+        <button
+          class="action-btn sort-btn"
+          @click.stop="handleMoveDown"
+          title="向下移动"
+          :disabled="!canMoveDown"
+        >
+          ↓
+        </button>
+      </template>
+
       <button
         class="action-btn delete-btn"
         @click.stop="handleDelete"
@@ -177,6 +197,16 @@ export default {
     selectedComponent: {
       type: Object,
       default: null,
+    },
+    // 组件在父容器中的索引
+    index: {
+      type: Number,
+      default: 0,
+    },
+    // 父容器中的总组件数
+    total: {
+      type: Number,
+      default: 1,
     },
   },
   watch: {
@@ -278,10 +308,57 @@ export default {
         border: style.border,
       };
     },
+
+    // 判断是否可以向上移动
+    canMoveUp() {
+      return this.component.type === "layout" && this.componentIndex > 0;
+    },
+
+    // 判断是否可以向下移动
+    canMoveDown() {
+      return (
+        this.component.type === "layout" &&
+        this.componentIndex < this.totalComponents - 1
+      );
+    },
+
+    // 当前组件在父容器中的索引
+    componentIndex() {
+      // 这个值需要从父组件传递过来
+      return this.index || 0;
+    },
+
+    // 父容器中的总组件数
+    totalComponents() {
+      // 这个值需要从父组件传递过来
+      return this.total || 1;
+    },
   },
   methods: {
     handleDelete() {
       this.$emit("delete", this.component.id);
+    },
+
+    // 向上移动组件
+    handleMoveUp() {
+      if (this.canMoveUp) {
+        this.$emit("move", {
+          componentId: this.component.id,
+          direction: "up",
+          currentIndex: this.componentIndex,
+        });
+      }
+    },
+
+    // 向下移动组件
+    handleMoveDown() {
+      if (this.canMoveDown) {
+        this.$emit("move", {
+          componentId: this.component.id,
+          direction: "down",
+          currentIndex: this.componentIndex,
+        });
+      }
     },
 
     getColumnStyle(column) {
@@ -862,5 +939,21 @@ export default {
 
 .delete-btn:hover {
   background: #ff7875;
+}
+
+.sort-btn {
+  background: #1890ff;
+  color: white;
+  font-size: 12px;
+}
+
+.sort-btn:hover:not(:disabled) {
+  background: #40a9ff;
+}
+
+.sort-btn:disabled {
+  background: #d9d9d9;
+  color: #bfbfbf;
+  cursor: not-allowed;
 }
 </style>
