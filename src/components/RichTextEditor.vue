@@ -66,14 +66,12 @@ export default {
             font-size: 14px;
             line-height: 1.5;
             margin: 0;
-            padding: 8px;
             color: inherit;
             background: transparent;
             box-sizing: border-box;
             width: 100%;
             word-wrap: break-word;
             overflow-wrap: break-word;
-            white-space: pre-wrap;
           }
           * {
             color: inherit;
