@@ -28,8 +28,32 @@
         <button class="btn" @click="redo" :disabled="!canRedo" title="重做">
           ↷
         </button>
+        <button
+          class="btn"
+          :class="{ active: autoPaginationEnabled }"
+          @click="toggleAutoPagination"
+          title="自动分页"
+        >
+          {{ autoPaginationEnabled ? "自动分页: 开" : "自动分页: 关" }}
+        </button>
+        <button
+          class="btn"
+          @click="manualPagination"
+          :disabled="paginationInProgress"
+          title="手动分页"
+        >
+          {{ paginationInProgress ? "分页中..." : "手动分页" }}
+        </button>
         <button class="btn" @click="saveSchema">保存</button>
         <button class="btn" @click="loadSchema">加载</button>
+        <button
+          v-if="mode === 'edit'"
+          class="btn test-btn"
+          @click="runPaginationTest"
+          title="测试分页功能"
+        >
+          测试分页
+        </button>
         <div class="export-dropdown">
           <button class="btn" @click="toggleExportMenu">导出 ▼</button>
           <div v-if="showExportMenu" class="export-menu">
@@ -58,6 +82,30 @@
             :config="pageSchema.pageConfig"
             @update="updatePageConfig"
             @close="showGlobalConfig = false"
+          />
+
+          <!-- 分页警告 -->
+          <PaginationWarnings
+            v-if="paginationWarnings.length > 0"
+            :warnings="paginationWarnings"
+            @close="paginationWarnings = []"
+            @disable-auto-pagination="handleDisableAutoPagination"
+            @retry-pagination="manualPagination"
+            @select-component="handleSelectComponentFromWarning"
+            @split-component="handleSplitComponent"
+            @adjust-margins="handleAdjustMargins"
+          />
+
+          <!-- 分页警告 -->
+          <PaginationWarnings
+            v-if="paginationWarnings.length > 0"
+            :warnings="paginationWarnings"
+            @close="paginationWarnings = []"
+            @disable-auto-pagination="handleDisableAutoPagination"
+            @retry-pagination="manualPagination"
+            @select-component="handleSelectComponentFromWarning"
+            @split-component="handleSplitComponent"
+            @adjust-margins="handleAdjustMargins"
           />
 
           <!-- 画布 -->
@@ -112,10 +160,17 @@ import {
   WordExportManager,
   PrintManager,
 } from "../utils/exportManager.js";
+import {
+  executeAutoPagination,
+  shouldRepaginate,
+} from "../utils/autoPagination.js";
+import { createPageHeightObserver } from "../utils/componentMeasurer.js";
+import { runAllTests } from "../utils/paginationTest.js";
 import ComponentLibrary from "./ComponentLibrary.vue";
 import Canvas from "./Canvas.vue";
 import PropertyPanel from "./PropertyPanel.vue";
 import GlobalConfig from "./GlobalConfig.vue";
+import PaginationWarnings from "./PaginationWarnings.vue";
 
 export default {
   name: "PageEditor",
@@ -124,6 +179,7 @@ export default {
     Canvas,
     PropertyPanel,
     GlobalConfig,
+    PaginationWarnings,
   },
   data() {
     return {
@@ -135,6 +191,12 @@ export default {
       autoSaveManager: null,
       hasUnsavedChanges: false,
       showExportMenu: false,
+      // 自动分页相关状态
+      autoPaginationEnabled: true,
+      heightObserver: null,
+      paginationInProgress: false,
+      paginationWarnings: [],
+      paginationDebounceTimer: null,
     };
   },
 
@@ -153,11 +215,20 @@ export default {
 
     // 添加点击外部关闭菜单的监听
     document.addEventListener("click", this.handleDocumentClick);
+
+    // 初始化自动分页监听器
+    this.initializeAutoPagination();
   },
 
   beforeDestroy() {
     if (this.autoSaveManager) {
       this.autoSaveManager.disable();
+    }
+    if (this.heightObserver) {
+      this.heightObserver.disconnect();
+    }
+    if (this.paginationDebounceTimer) {
+      clearTimeout(this.paginationDebounceTimer);
     }
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
     document.removeEventListener("click", this.handleDocumentClick);
@@ -640,6 +711,183 @@ export default {
         this.markAsChanged();
       }
     },
+
+    // 自动分页相关方法
+    initializeAutoPagination() {
+      if (!this.autoPaginationEnabled) return;
+
+      // 等待DOM渲染完成后初始化
+      this.$nextTick(() => {
+        this.setupHeightObserver();
+      });
+    },
+
+    setupHeightObserver() {
+      // 清理现有的观察器
+      if (this.heightObserver) {
+        this.heightObserver.disconnect();
+      }
+
+      // 收集所有页面的组件
+      const allComponents = [];
+      this.pageSchema.pages.forEach((page) => {
+        allComponents.push(...page.components);
+      });
+
+      // 创建高度观察器
+      this.heightObserver = createPageHeightObserver(allComponents, (data) => {
+        this.handleHeightChange(data);
+      });
+    },
+
+    async handleHeightChange() {
+      if (this.paginationInProgress) return;
+
+      // 防抖处理，避免频繁触发
+      clearTimeout(this.paginationDebounceTimer);
+      this.paginationDebounceTimer = setTimeout(async () => {
+        await this.checkAndExecutePagination();
+      }, 500);
+    },
+
+    async checkAndExecutePagination() {
+      if (!this.autoPaginationEnabled || this.paginationInProgress) return;
+
+      try {
+        this.paginationInProgress = true;
+
+        // 检查是否需要重新分页
+        const needsPagination = await shouldRepaginate(this.pageSchema);
+
+        if (needsPagination) {
+          await this.executeAutoPagination();
+        }
+      } catch (error) {
+        console.error("自动分页检查失败:", error);
+      } finally {
+        this.paginationInProgress = false;
+      }
+    },
+
+    async executeAutoPagination() {
+      try {
+        const result = await executeAutoPagination(this.pageSchema);
+
+        if (result.success) {
+          // 应用新的页面结构
+          this.pageSchema = result.newSchema;
+          this.paginationWarnings = result.warnings || [];
+
+          // 重新设置高度观察器
+          this.$nextTick(() => {
+            this.setupHeightObserver();
+          });
+
+          // 标记为已更改
+          this.markAsChanged();
+
+          console.log("自动分页完成:", result.statistics);
+        } else {
+          console.warn("自动分页失败:", result.errors);
+          this.paginationWarnings = result.errors || [];
+        }
+      } catch (error) {
+        console.error("执行自动分页时出错:", error);
+        this.paginationWarnings = [error.message];
+      }
+    },
+
+    toggleAutoPagination() {
+      this.autoPaginationEnabled = !this.autoPaginationEnabled;
+
+      if (this.autoPaginationEnabled) {
+        this.initializeAutoPagination();
+      } else if (this.heightObserver) {
+        this.heightObserver.disconnect();
+        this.heightObserver = null;
+      }
+    },
+
+    async manualPagination() {
+      if (this.paginationInProgress) return;
+
+      try {
+        this.paginationInProgress = true;
+        await this.executeAutoPagination();
+      } finally {
+        this.paginationInProgress = false;
+      }
+    },
+
+    // 警告处理方法
+    handleDisableAutoPagination() {
+      this.autoPaginationEnabled = false;
+      this.paginationWarnings = [];
+
+      if (this.heightObserver) {
+        this.heightObserver.disconnect();
+        this.heightObserver = null;
+      }
+    },
+
+    handleSelectComponentFromWarning(componentId) {
+      if (!componentId) return;
+
+      // 在所有页面中查找组件
+      for (const page of this.pageSchema.pages) {
+        const component = this.findComponentById(page.components, componentId);
+        if (component) {
+          this.selectedComponent = component;
+          this.paginationWarnings = [];
+          break;
+        }
+      }
+    },
+
+    findComponentById(components, id) {
+      for (const component of components) {
+        if (component.id === id) {
+          return component;
+        }
+
+        if (component.children) {
+          const found = this.findComponentById(component.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    },
+
+    handleSplitComponent(componentId) {
+      // 这里可以实现组件拆分逻辑
+      // 暂时显示提示信息
+      alert(`组件拆分功能正在开发中。组件ID: ${componentId}`);
+    },
+
+    handleAdjustMargins() {
+      // 打开全局配置面板，让用户调整页边距
+      this.showGlobalConfig = true;
+      this.paginationWarnings = [];
+    },
+
+    // 测试方法
+    async runPaginationTest() {
+      try {
+        console.log("开始运行分页测试...");
+        const results = await runAllTests();
+
+        const passedTests = results.filter((r) => r.validation?.passed).length;
+        const totalTests = results.length;
+
+        const message = `分页测试完成！\n通过: ${passedTests}/${totalTests}\n\n详细结果请查看控制台。`;
+        alert(message);
+
+        console.log("分页测试结果汇总:", results);
+      } catch (error) {
+        console.error("分页测试失败:", error);
+        alert("分页测试失败: " + error.message);
+      }
+    },
   },
 };
 </script>
@@ -697,6 +945,17 @@ export default {
   background: #1890ff;
   color: white;
   border-color: #1890ff;
+}
+
+.btn.test-btn {
+  background: #52c41a;
+  color: white;
+  border-color: #52c41a;
+}
+
+.btn.test-btn:hover {
+  background: #73d13d;
+  border-color: #73d13d;
 }
 
 .editor-content {
