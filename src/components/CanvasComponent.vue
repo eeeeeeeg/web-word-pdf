@@ -29,10 +29,11 @@
         :key="index"
         class="layout-column"
         :style="getColumnStyle(column)"
+        :data-column-index="index"
         @drop="handleColumnDrop($event, index)"
-        @dragover="handleDragOver"
-        @dragenter="handleDragEnter"
-        @dragleave="handleDragLeave"
+        @dragover="(e) => handleDragOver(e, index)"
+        @dragenter="(e) => handleDragEnter(e, index)"
+        @dragleave="(e) => handleDragLeave(e, index)"
       >
         <CanvasComponent
           v-for="child in getColumnChildren(index)"
@@ -53,6 +54,9 @@
         >
           拖拽组件到此列
         </div>
+        <!-- <div v-else-if="mode === 'edit'" class="column-full-indicator">
+          此列已满 (每列限一个组件)
+        </div> -->
       </div>
     </div>
 
@@ -420,13 +424,20 @@ export default {
             return;
           }
 
+          // 检查该列是否已经有组件
+          const existingChildren = this.getColumnChildren(columnIndex);
+          if (existingChildren.length > 0) {
+            console.warn("每列只能添加一个组件");
+            return;
+          }
+
           componentData.columnIndex = columnIndex;
 
           // 不直接修改 prop，而是通过事件通知父组件
           this.$emit("drop", {
             component: componentData,
             targetContainer: this.component,
-            position: this.getColumnChildren(columnIndex).length,
+            position: 0, // 由于每列只能有一个组件，位置总是0
             columnIndex,
           });
         }
@@ -435,21 +446,37 @@ export default {
       }
     },
 
-    handleDragOver(event) {
+    handleDragOver(event, columnIndex) {
       event.preventDefault();
       event.stopPropagation();
+
+      // 检查该列是否已经有组件
+      const existingChildren = this.getColumnChildren(columnIndex);
+      if (existingChildren.length > 0) {
+        // 如果列已满，不允许拖拽
+        event.dataTransfer.dropEffect = "none";
+        return;
+      }
+
       event.dataTransfer.dropEffect = "copy";
     },
 
-    handleDragEnter(event) {
+    handleDragEnter(event, columnIndex) {
       event.preventDefault();
       event.stopPropagation();
+
       if (event.target.classList.contains("layout-column")) {
-        event.target.classList.add("drag-over");
+        // 检查该列是否已经有组件
+        const existingChildren = this.getColumnChildren(columnIndex);
+        if (existingChildren.length === 0) {
+          // 只有当列为空时才显示拖拽悬停效果
+          event.target.classList.add("drag-over");
+        }
       }
     },
 
-    handleDragLeave(event) {
+    handleDragLeave(event, columnIndex) {
+      columnIndex;
       if (event.target.classList.contains("layout-column")) {
         event.target.classList.remove("drag-over");
       }
@@ -822,6 +849,19 @@ export default {
   border: 1px dashed #d0d0d0;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.5);
+}
+
+.column-full-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  color: #ff4d4f;
+  font-size: 11px;
+  border: 1px solid #ffccc7;
+  border-radius: 4px;
+  background: rgba(255, 77, 79, 0.05);
+  margin-top: 8px;
 }
 
 .text-component {
