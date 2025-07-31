@@ -165,14 +165,31 @@ export class WordExportManager {
     const { filename = "page-export.docx" } = options;
 
     try {
-      // 暂时使用简单的文本导出
-      const content = this.convertSchemaToText(schema);
-      const blob = new Blob([content], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
+      // 动态导入docx库
+      const { Document, Packer, Paragraph, TextRun, HeadingLevel } =
+        await import("docx");
 
+      // 创建Word文档
+      const doc = new Document({
+        sections: [
+          {
+            properties: {},
+            children: this.convertSchemaToDocxElements(schema, {
+              Paragraph,
+              TextRun,
+              HeadingLevel,
+            }),
+          },
+        ],
+      });
+
+      // 生成文档 - 使用浏览器兼容的方式
+      const blob = await Packer.toBlob(doc);
+
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = filename.replace(".docx", ".txt");
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -186,7 +203,181 @@ export class WordExportManager {
   }
 
   /**
-   * 转换 Schema 为文本
+   * 转换 Schema 为 docx 元素
+   */
+  static convertSchemaToDocxElements(
+    schema,
+    { Paragraph, TextRun, HeadingLevel }
+  ) {
+    const elements = [];
+
+    // 添加文档标题
+    elements.push(
+      new Paragraph({
+        text: "页面设计导出",
+        heading: HeadingLevel.TITLE,
+      })
+    );
+
+    // 添加页面配置信息
+    elements.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `页面尺寸: ${schema.pageConfig.pageSize.width} x ${schema.pageConfig.pageSize.height} ${schema.pageConfig.pageSize.unit}`,
+            bold: true,
+          }),
+        ],
+      })
+    );
+
+    elements.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `页面边距: 上${schema.pageConfig.margins.top} 右${schema.pageConfig.margins.right} 下${schema.pageConfig.margins.bottom} 左${schema.pageConfig.margins.left}`,
+            bold: true,
+          }),
+        ],
+      })
+    );
+
+    // 添加页眉
+    if (schema.pageConfig.header.enabled) {
+      elements.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `页眉: ${schema.pageConfig.header.content}`,
+              italics: true,
+            }),
+          ],
+        })
+      );
+    }
+
+    // 添加页面内容
+    if (schema.pages && Array.isArray(schema.pages)) {
+      schema.pages.forEach((page, pageIndex) => {
+        // 页面标题
+        elements.push(
+          new Paragraph({
+            text: `页面 ${pageIndex + 1}: ${
+              page.name || `页面${pageIndex + 1}`
+            }`,
+            heading: HeadingLevel.HEADING_1,
+          })
+        );
+
+        if (page.components && page.components.length > 0) {
+          const pageElements = this.convertComponentsToDocxElements(
+            page.components,
+            { Paragraph, TextRun, HeadingLevel }
+          );
+          elements.push(...pageElements);
+        } else {
+          elements.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "(空页面)",
+                  italics: true,
+                }),
+              ],
+            })
+          );
+        }
+      });
+    }
+
+    // 添加页脚
+    if (schema.pageConfig.footer.enabled) {
+      elements.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `页脚: ${schema.pageConfig.footer.content}`,
+              italics: true,
+            }),
+          ],
+        })
+      );
+    }
+
+    return elements;
+  }
+
+  /**
+   * 转换组件为 docx 元素
+   */
+  static convertComponentsToDocxElements(
+    components,
+    { Paragraph, TextRun, HeadingLevel }
+  ) {
+    const elements = [];
+
+    if (!components || !Array.isArray(components)) {
+      return elements;
+    }
+
+    components.forEach((component) => {
+      switch (component.type) {
+        case "text": {
+          // 处理富文本内容
+          const textContent = component.content.replace(/<[^>]*>/g, "");
+          elements.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: textContent,
+                }),
+              ],
+            })
+          );
+          break;
+        }
+
+        case "layout":
+          elements.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `布局容器 (${component.columns.length}列)`,
+                  bold: true,
+                }),
+              ],
+            })
+          );
+
+          if (component.children && component.children.length > 0) {
+            const childElements = this.convertComponentsToDocxElements(
+              component.children,
+              { Paragraph, TextRun, HeadingLevel }
+            );
+            elements.push(...childElements);
+          }
+          break;
+
+        case "image":
+          elements.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `图片: ${component.alt || "无描述"}`,
+                  italics: true,
+                }),
+              ],
+            })
+          );
+          break;
+      }
+    });
+
+    return elements;
+  }
+
+  /**
+   * 转换 Schema 为文本 (备用方法)
    */
   static convertSchemaToText(schema) {
     let text = "页面设计导出\n\n";
@@ -200,9 +391,29 @@ export class WordExportManager {
       text += `页眉: ${schema.pageConfig.header.content}\n\n`;
     }
 
-    // 添加组件内容
-    text += "页面内容:\n";
-    text += this.convertComponentsToText(schema.components, 0);
+    // 添加页面内容
+    if (schema.pages && Array.isArray(schema.pages)) {
+      schema.pages.forEach((page, pageIndex) => {
+        text += `\n页面 ${pageIndex + 1}: ${
+          page.name || `页面${pageIndex + 1}`
+        }\n`;
+        text += "=".repeat(40) + "\n";
+        if (page.components && page.components.length > 0) {
+          text += this.convertComponentsToText(page.components, 0);
+        } else {
+          text += "  (空页面)\n";
+        }
+        text += "\n";
+      });
+    } else {
+      // 兼容旧版本架构
+      text += "页面内容:\n";
+      if (schema.components) {
+        text += this.convertComponentsToText(schema.components, 0);
+      } else {
+        text += "  (无内容)\n";
+      }
+    }
 
     // 添加页脚
     if (schema.pageConfig.footer.enabled) {
@@ -218,6 +429,11 @@ export class WordExportManager {
   static convertComponentsToText(components, indent = 0) {
     let text = "";
     const indentStr = "  ".repeat(indent);
+
+    // 检查组件数组是否有效
+    if (!components || !Array.isArray(components)) {
+      return text;
+    }
 
     components.forEach((component) => {
       switch (component.type) {
