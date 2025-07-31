@@ -1,0 +1,102 @@
+/* 全局文本显示样式 - 用于 v-html 渲染的内容 */
+.text-display {
+  word-wrap: break-word;
+  word-break: break-all;
+  overflow-wrap: break-word;
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent !important;
+}
+
+.text-display * {
+  color: inherit !important;
+}
+
+.text-display p {
+  margin: 0 0 8px 0;
+}
+
+.text-display p:last-child {
+  margin-bottom: 0;
+}
+
+.text-display h1,
+.text-display h2,
+.text-display h3,
+.text-display h4,
+.text-display h5,
+.text-display h6 {
+  margin: 8px 0;
+  color: inherit !important;
+}
+
+.text-display ul,
+.text-display ol {
+  margin: 8px 0;
+  padding-left: 20px;
+  list-style-position: outside;
+  white-space: normal;
+}
+
+.text-display ul {
+  list-style-type: disc;
+}
+
+.text-display ol {
+  list-style-type: decimal;
+}
+
+.text-display li {
+  margin: 2px 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.text-display ul ul,
+.text-display ol ol,
+.text-display ul ol,
+.text-display ol ul {
+  margin: 2px 0;
+  padding-left: 16px;
+}
+
+.text-display ul ul {
+  list-style-type: circle;
+}
+
+.text-display ul ul ul {
+  list-style-type: square;
+}
+
+.text-display img {
+  max-width: 100%;
+  height: auto;
+}
+
+.text-display table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+}
+
+.text-display table td,
+.text-display table th {
+  border: 1px solid #ddd;
+  padding: 4px 8px;
+}
+
+.text-display strong {
+  font-weight: bold;
+}
+
+.text-display em {
+  font-style: italic;
+}
+
+.text-display u {
+  text-decoration: underline;
+}
+
+.text-display s {
+  text-decoration: line-through;
+}

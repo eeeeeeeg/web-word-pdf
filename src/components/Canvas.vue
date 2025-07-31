@@ -9,7 +9,11 @@
         :class="{ 'current-page': pageIndex === schema.currentPageIndex }"
       >
         <!-- 页面标题栏 -->
-        <div class="page-title-bar" v-if="mode === 'edit'">
+        <div
+          class="page-title-bar"
+          v-if="mode === 'edit'"
+          @click="$emit('page-select', pageIndex)"
+        >
           <span class="page-title">{{ page.name }}</span>
           <div class="page-actions">
             <button

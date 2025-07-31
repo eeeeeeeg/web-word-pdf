@@ -65,7 +65,68 @@ export default {
             font-family: Arial, sans-serif;
             font-size: 14px;
             line-height: 1.5;
-            margin: 8px;
+            margin: 0;
+            padding: 8px;
+            color: inherit;
+            background: transparent;
+            box-sizing: border-box;
+            width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+          }
+          * {
+            color: inherit;
+          }
+          p {
+            margin: 0 0 8px 0;
+          }
+          p:last-child {
+            margin-bottom: 0;
+          }
+          h1, h2, h3, h4, h5, h6 {
+            margin: 8px 0;
+            color: inherit;
+          }
+          ul, ol {
+            margin: 8px 0;
+            padding-left: 20px;
+            list-style-position: outside;
+            white-space: normal;
+          }
+          ul {
+            list-style-type: disc;
+          }
+          ol {
+            list-style-type: decimal;
+          }
+          li {
+            margin: 2px 0;
+            line-height: 1.5;
+            white-space: pre-wrap;
+          }
+          ul ul, ol ol, ul ol, ol ul {
+            margin: 2px 0;
+            padding-left: 16px;
+          }
+          ul ul {
+            list-style-type: circle;
+          }
+          ul ul ul {
+            list-style-type: square;
+          }
+          img {
+            max-width: 100%;
+            height: auto;
+          }
+          table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 8px 0;
+          }
+          table td, table th {
+            border: 1px solid #ddd;
+            padding: 4px 8px;
           }
         `,
         plugins: [
@@ -164,11 +225,13 @@ export default {
 
 <style scoped>
 .rich-text-editor-wrapper {
-  border: 1px solid #ddd;
+  border: none;
   border-radius: 4px;
-  background: white;
+  background: transparent;
   position: relative;
   z-index: 1000;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .rich-text-editor {
@@ -246,6 +309,21 @@ export default {
 /* 确保编辑器内容区域样式 */
 .rich-text-editor ::v-deep iframe {
   border-radius: 0 0 4px 4px;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* 确保编辑区域宽度一致 */
+.rich-text-editor ::v-deep .tox-edit-area {
+  border: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.rich-text-editor ::v-deep .tox-edit-area__iframe {
+  background: white;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 /* 隐藏品牌标识 */

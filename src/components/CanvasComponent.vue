@@ -243,9 +243,18 @@ export default {
     textDisplayStyle() {
       return {
         width: "100%",
-        minHeight: "inherit",
-        padding: "12px",
+        minHeight: "60px",
+        padding: "0",
         lineHeight: "1.5",
+        fontFamily: "Arial, sans-serif",
+        fontSize: "14px",
+        color: "inherit",
+        background: "transparent",
+        wordWrap: "break-word",
+        wordBreak: "break-word",
+        overflowWrap: "break-word",
+        boxSizing: "border-box",
+        margin: "0",
       };
     },
 
@@ -549,6 +558,10 @@ export default {
   outline: none;
 }
 
+.canvas-component.preview-mode.selected {
+  outline: none;
+}
+
 .canvas-component.dragging {
   opacity: 0.5;
   transform: rotate(2deg);
@@ -680,6 +693,18 @@ export default {
   user-select: text;
 }
 
+/* 富文本内容预览样式统一 */
+.text-display {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: inherit;
+  background: transparent;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+}
+
 /* 防止文本组件的拖拽动画 */
 .canvas-component[data-component-type="text"]:not([draggable="true"]) {
   pointer-events: auto;
@@ -689,16 +714,6 @@ export default {
 .canvas-component[data-component-type="text"] .rich-text-editor-wrapper,
 .canvas-component[data-component-type="text"] .text-display {
   pointer-events: auto;
-}
-
-.text-display {
-  word-wrap: break-word;
-  word-break: break-all;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  width: 100%;
-  box-sizing: border-box;
-  background: transparent !important;
 }
 
 .image-component {
