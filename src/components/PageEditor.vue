@@ -60,6 +60,7 @@
             <button @click="exportAsPDF">导出为 PDF</button>
             <button @click="exportAsImage">导出为图片</button>
             <button @click="exportAsWord">导出为 Word</button>
+            <button @click="exportAsHTML">导出为 HTML (Playwright)</button>
             <button @click="printPage">打印</button>
           </div>
         </div>
@@ -709,6 +710,20 @@ export default {
       }
     },
 
+    exportAsHTML() {
+      this.showExportMenu = false;
+      try {
+        const htmlContent = this.generatePlaywrightHTML();
+        this.downloadHTML(
+          htmlContent,
+          `页面设计_${new Date().toLocaleDateString()}.html`
+        );
+        alert("HTML 导出成功！");
+      } catch (error) {
+        alert("HTML 导出失败: " + error.message);
+      }
+    },
+
     printPage() {
       this.showExportMenu = false;
       try {
@@ -921,6 +936,355 @@ export default {
       // 打开全局配置面板，让用户调整页边距
       this.showGlobalConfig = true;
       this.paginationWarnings = [];
+    },
+
+    // HTML 导出相关方法
+    generatePlaywrightHTML() {
+      const config = this.pageSchema.pageConfig;
+      const pages = this.pageSchema.pages;
+
+      // 生成页面样式
+      const pageStyles = this.generatePageStyles(config);
+
+      // 生成页面内容
+      const pagesHTML = pages
+        .map((page, index) => this.generatePageHTML(page, index, config))
+        .join("\n");
+
+      return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>页面设计导出</title>
+    <style>
+        ${pageStyles}
+    </style>
+</head>
+<body>
+    <div class="document-container">
+        ${pagesHTML}
+    </div>
+</body>
+</html>`;
+    },
+
+    generatePageStyles(config) {
+      const size = config.pageSize;
+      let width, height;
+
+      // 转换尺寸到像素
+      if (size.unit === "mm") {
+        width = size.width * 3.78; // 1mm ≈ 3.78px at 96dpi
+        height = size.height * 3.78;
+      } else if (size.unit === "in") {
+        width = size.width * 96; // 1in = 96px at 96dpi
+        height = size.height * 96;
+      } else {
+        width = size.width;
+        height = size.height;
+      }
+
+      return `
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .document-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .page {
+            width: ${width}px;
+            height: ${height}px;
+            background: white;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border-radius: 6px;
+            position: relative;
+            padding: ${config.margins.top * 3.78}px ${
+        config.margins.right * 3.78
+      }px ${config.margins.bottom * 3.78}px ${config.margins.left * 3.78}px;
+            page-break-after: always;
+        }
+
+        .page:last-child {
+            page-break-after: auto;
+        }
+
+        .page-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: ${config.header.height * 3.78}px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: ${config.header.style.fontSize}px;
+            font-family: ${config.header.style.fontFamily};
+            color: ${config.header.style.color};
+            text-align: ${config.header.style.textAlign};
+            border-bottom: 1px solid #f0f0f0;
+            background: rgba(248, 248, 248, 0.8);
+        }
+
+        .page-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: ${config.footer.height * 3.78}px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: ${config.footer.style.fontSize}px;
+            font-family: ${config.footer.style.fontFamily};
+            color: ${config.footer.style.color};
+            text-align: ${config.footer.style.textAlign};
+            border-top: 1px solid #f0f0f0;
+            background: rgba(248, 248, 248, 0.8);
+        }
+
+        .page-content {
+            height: 100%;
+            ${
+              config.header.enabled
+                ? `padding-top: ${config.header.height * 3.78}px;`
+                : ""
+            }
+            ${
+              config.footer.enabled
+                ? `padding-bottom: ${config.footer.height * 3.78}px;`
+                : ""
+            }
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .layout-component {
+            display: flex;
+            align-items: stretch;
+            min-height: 60px;
+        }
+
+        .layout-column {
+            padding: 8px;
+            position: relative;
+        }
+
+        .text-component {
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 24px;
+        }
+
+        .text-content {
+            width: 100%;
+            min-height: inherit;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .image-component {
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .image-component img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 4px;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .document-container {
+                gap: 0;
+            }
+
+            .page {
+                box-shadow: none;
+                border-radius: 0;
+                margin: 0;
+                page-break-after: always;
+            }
+
+            .page:last-child {
+                page-break-after: auto;
+            }
+        }
+      `;
+    },
+
+    generatePageHTML(page, pageIndex, config) {
+      const pageClass = `page page-${pageIndex + 1}`;
+
+      // 生成页眉
+      const headerHTML = config.header.enabled
+        ? `<div class="page-header">${this.formatFooterContent(
+            config.header.content,
+            pageIndex + 1
+          )}</div>`
+        : "";
+
+      // 生成页脚
+      const footerHTML = config.footer.enabled
+        ? `<div class="page-footer">${this.formatFooterContent(
+            config.footer.content,
+            pageIndex + 1
+          )}</div>`
+        : "";
+
+      // 生成页面内容
+      const contentHTML = page.components
+        .map((component) => this.generateComponentHTML(component))
+        .join("\n");
+
+      return `
+        <div class="${pageClass}">
+          ${headerHTML}
+          <div class="page-content">
+            ${contentHTML}
+          </div>
+          ${footerHTML}
+        </div>
+      `;
+    },
+
+    generateComponentHTML(component) {
+      switch (component.type) {
+        case "layout":
+          return this.generateLayoutHTML(component);
+        case "text":
+          return this.generateTextHTML(component);
+        case "image":
+          return this.generateImageHTML(component);
+        default:
+          return "";
+      }
+    },
+
+    generateLayoutHTML(component) {
+      const style = component.style;
+      const layoutStyle = `
+        margin: ${style.margin.top}px ${style.margin.right}px ${
+        style.margin.bottom
+      }px ${style.margin.left}px;
+        padding: ${style.padding.top}px ${style.padding.right}px ${
+        style.padding.bottom
+      }px ${style.padding.left}px;
+        justify-content: ${component.alignment || "flex-start"};
+      `;
+
+      const columnsHTML = component.columns
+        .map((column, index) => {
+          const columnStyle = `flex: 0 0 ${column.width}%; padding: 8px;`;
+          const children = component.children
+            ? component.children.filter((child) => child.columnIndex === index)
+            : [];
+          const childrenHTML = children
+            .map((child) => this.generateComponentHTML(child))
+            .join("\n");
+
+          return `<div class="layout-column" style="${columnStyle}">${childrenHTML}</div>`;
+        })
+        .join("\n");
+
+      return `<div class="layout-component" style="${layoutStyle}">${columnsHTML}</div>`;
+    },
+
+    generateTextHTML(component) {
+      const style = component.style;
+      const textStyle = `
+        margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
+        padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
+      `;
+
+      const contentStyle = `
+        font-size: ${style.fontSize}px;
+        font-family: ${style.fontFamily};
+        color: ${style.color};
+        line-height: ${style.lineHeight};
+        text-align: ${style.textAlign};
+        font-weight: ${style.fontWeight};
+        font-style: ${style.fontStyle};
+        text-decoration: ${style.textDecoration};
+      `;
+
+      return `
+        <div class="text-component" style="${textStyle}">
+          <div class="text-content" style="${contentStyle}">
+            ${component.content || ""}
+          </div>
+        </div>
+      `;
+    },
+
+    generateImageHTML(component) {
+      const style = component.style;
+      const containerStyle = `
+        margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
+        padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
+      `;
+
+      const imageStyle = `
+        width: ${style.width}px;
+        ${component.keepAspectRatio ? "" : `height: ${style.height}px;`}
+        object-fit: ${style.objectFit};
+        border-radius: ${style.borderRadius}px;
+        border: ${style.border};
+      `;
+
+      if (!component.src) {
+        return `
+          <div class="image-component" style="${containerStyle}">
+            <div style="border: 2px dashed #d0d0d0; padding: 20px; text-align: center; color: #999;">
+              图片未加载
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="image-component" style="${containerStyle}">
+          <img src="${component.src}" alt="${
+        component.alt || ""
+      }" style="${imageStyle}" />
+        </div>
+      `;
+    },
+
+    downloadHTML(content, filename) {
+      const blob = new Blob([content], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     },
 
     // 测试方法
