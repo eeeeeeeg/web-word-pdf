@@ -46,6 +46,7 @@
         </button>
         <button class="btn" @click="saveSchema">保存</button>
         <button class="btn" @click="loadSchema">加载</button>
+        <button class="btn btn-share" @click="openShareDialog">分享</button>
         <button
           v-if="mode === 'edit'"
           class="btn test-btn"
@@ -83,6 +84,13 @@
             :config="pageSchema.pageConfig"
             @update="updatePageConfig"
             @close="showGlobalConfig = false"
+          />
+
+          <!-- 分享对话框 -->
+          <ShareDialog
+            v-if="showShareDialog"
+            :schema="pageSchema"
+            @close="closeShareDialog"
           />
 
           <!-- 分页警告 -->
@@ -173,6 +181,7 @@ import Canvas from "./Canvas.vue";
 import PropertyPanel from "./PropertyPanel.vue";
 import GlobalConfig from "./GlobalConfig.vue";
 import PaginationWarnings from "./PaginationWarnings.vue";
+import ShareDialog from "./ShareDialog.vue";
 
 export default {
   name: "PageEditor",
@@ -182,6 +191,7 @@ export default {
     PropertyPanel,
     GlobalConfig,
     PaginationWarnings,
+    ShareDialog,
   },
   data() {
     return {
@@ -190,6 +200,7 @@ export default {
       selectedComponent: null,
       draggedComponent: null,
       showGlobalConfig: false,
+      showShareDialog: false,
       autoSaveManager: null,
       hasUnsavedChanges: false,
       showExportMenu: false,
@@ -629,6 +640,15 @@ export default {
       } catch (error) {
         alert("加载失败: " + error.message);
       }
+    },
+
+    // 分享功能
+    openShareDialog() {
+      this.showShareDialog = true;
+    },
+
+    closeShareDialog() {
+      this.showShareDialog = false;
     },
 
     undo() {

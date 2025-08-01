@@ -1,16 +1,49 @@
 <template>
-  <div id="app">
-    <PageEditor />
+  <div id="app" :class="{ 'share-mode': isShareMode }">
+    <!-- 分享预览页面 -->
+    <SharePreview v-if="isShareMode" :share-id="shareId" />
+    <!-- 正常编辑器 -->
+    <PageEditor v-else />
   </div>
 </template>
 
 <script>
 import PageEditor from "./components/PageEditor.vue";
+import SharePreview from "./components/SharePreview.vue";
 
 export default {
   name: "App",
   components: {
     PageEditor,
+    SharePreview,
+  },
+  data() {
+    return {
+      isShareMode: false,
+      shareId: "",
+    };
+  },
+  mounted() {
+    this.checkRoute();
+    // 监听hash变化
+    window.addEventListener("hashchange", this.checkRoute);
+  },
+  beforeDestroy() {
+    window.removeEventListener("hashchange", this.checkRoute);
+  },
+  methods: {
+    checkRoute() {
+      const hash = window.location.hash;
+
+      // 检查是否是分享链接
+      if (hash.startsWith("#/share/")) {
+        this.isShareMode = true;
+        this.shareId = hash.replace("#/share/", "");
+      } else {
+        this.isShareMode = false;
+        this.shareId = "";
+      }
+    },
   },
 };
 </script>
@@ -28,6 +61,10 @@ export default {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   height: 100vh;
+}
+
+/* 编辑模式下隐藏滚动条 */
+#app:not(.share-mode) {
   overflow: hidden;
 }
 

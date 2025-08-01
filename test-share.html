@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分享功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .test-link {
+            background: #e6f7ff;
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+        button {
+            background: #1890ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #40a9ff;
+        }
+    </style>
+</head>
+<body>
+    <h1>页面分享功能测试</h1>
+    
+    <div class="test-section">
+        <h2>功能说明</h2>
+        <p>这个分享功能允许用户：</p>
+        <ul>
+            <li>✅ 生成包含页面设计数据的分享链接</li>
+            <li>✅ 设置分享标题、描述和有效期</li>
+            <li>✅ 一键复制分享链接</li>
+            <li>✅ 通过链接查看只读预览（无编辑功能）</li>
+            <li>✅ 支持打印和PDF下载（开发中）</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>测试步骤</h2>
+        <ol>
+            <li>在页面编辑器中创建一些内容</li>
+            <li>点击顶部工具栏的"分享"按钮</li>
+            <li>在弹出的对话框中设置分享信息</li>
+            <li>点击"生成分享链接"</li>
+            <li>复制生成的链接</li>
+            <li>在新标签页中打开链接查看效果</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>示例分享链接</h2>
+        <p>以下是一个示例分享链接的格式：</p>
+        <div class="test-link">
+            http://localhost:8080/#/share/eyJzY2hlbWEiOnsicGFnZXMiOlt7ImlkIjoiMSIsIm5hbWUiOiLpobXpnaEgMSIsImNvbXBvbmVudHMiOlt7ImlkIjoiMSIsInR5cGUiOiJ0ZXh0IiwiY29udGVudCI6IuWIhuS6q+mhtemdoSJ9XX1dLCJwYWdlQ29uZmlnIjp7InBhZ2VTaXplIjp7IndpZHRoIjoyMTAsImhlaWdodCI6Mjk3LCJ1bml0IjoibW0ifX19LCJ0aW1lc3RhbXAiOjE3MDAwMDAwMDAsInZlcnNpb24iOiIxLjAiLCJvcHRpb25zIjp7InRpdGxlIjoi5oiR55qE6aG16Z2h6K6+6K6hIiwiZGVzY3JpcHRpb24iOiLov5nmmK/kuIDkuKrliIbkuqvpobXpnaHnpLrkvosifX0%3D
+        </div>
+        <p><small>注意：实际链接会更长，因为包含了完整的页面设计数据</small></p>
+    </div>
+
+    <div class="test-section">
+        <h2>技术实现</h2>
+        <ul>
+            <li><strong>数据压缩</strong>：使用Base64编码压缩页面设计数据</li>
+            <li><strong>URL参数</strong>：将压缩数据作为URL hash参数传递</li>
+            <li><strong>无服务器</strong>：完全基于前端实现，无需后端支持</li>
+            <li><strong>有效期控制</strong>：在数据中包含时间戳和有效期</li>
+            <li><strong>只读预览</strong>：分享页面只显示最终效果，不可编辑</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>快速测试</h2>
+        <button onclick="testShareFunction()">生成测试分享链接</button>
+        <button onclick="openTestShare()">打开测试分享页面</button>
+        <div id="testResult" style="margin-top: 10px;"></div>
+    </div>
+
+    <script>
+        // 简单的测试函数
+        function testShareFunction() {
+            // 模拟页面设计数据
+            const testSchema = {
+                pages: [{
+                    id: "1",
+                    name: "测试页面",
+                    components: [{
+                        id: "1",
+                        type: "text",
+                        content: "<p>这是一个测试分享页面</p><p>包含多个段落的文本内容</p>",
+                        style: {
+                            fontSize: 16,
+                            fontFamily: "Arial",
+                            color: "#333333",
+                            lineHeight: 1.5,
+                            textAlign: "left",
+                            margin: { top: 0, right: 0, bottom: 10, left: 0 },
+                            padding: { top: 10, right: 10, bottom: 10, left: 10 }
+                        }
+                    }]
+                }],
+                pageConfig: {
+                    pageSize: { width: 210, height: 297, unit: "mm" },
+                    margins: { top: 20, bottom: 20, left: 20, right: 20 },
+                    defaultStyles: {
+                        fontFamily: "Arial",
+                        fontSize: 14,
+                        color: "#333333",
+                        lineHeight: 1.5,
+                        paragraphSpacing: 6
+                    }
+                }
+            };
+
+            const shareData = {
+                schema: testSchema,
+                timestamp: Date.now(),
+                version: "1.0",
+                options: {
+                    title: "测试分享页面",
+                    description: "这是一个用于测试分享功能的示例页面",
+                    expiresIn: 7 * 24 * 60 * 60 * 1000
+                }
+            };
+
+            // 压缩数据
+            const compressedData = btoa(encodeURIComponent(JSON.stringify(shareData)));
+            const shareUrl = window.location.origin + window.location.pathname + '#/share/' + compressedData;
+            
+            document.getElementById('testResult').innerHTML = `
+                <div style="background: #f0f8ff; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                    <strong>生成的测试分享链接：</strong><br>
+                    <div style="word-break: break-all; margin: 5px 0; font-family: monospace; font-size: 12px;">
+                        ${shareUrl}
+                    </div>
+                    <button onclick="copyToClipboard('${shareUrl}')">复制链接</button>
+                    <button onclick="window.open('${shareUrl}', '_blank')">在新窗口打开</button>
+                </div>
+            `;
+        }
+
+        function openTestShare() {
+            // 直接跳转到测试分享页面
+            testShareFunction();
+            setTimeout(() => {
+                const links = document.querySelectorAll('#testResult a, #testResult button[onclick*="window.open"]');
+                if (links.length > 0) {
+                    const shareUrl = document.querySelector('#testResult div[style*="monospace"]').textContent.trim();
+                    window.open(shareUrl, '_blank');
+                }
+            }, 100);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('链接已复制到剪贴板！');
+            }).catch(() => {
+                // 降级方案
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('链接已复制到剪贴板！');
+            });
+        }
+    </script>
+</body>
+</html>
