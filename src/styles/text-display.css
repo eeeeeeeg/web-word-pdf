@@ -13,7 +13,7 @@
 }
 
 .text-display p {
-  margin: 0 0 8px 0;
+  margin: 0 0 var(--paragraph-spacing, 8px) 0;
 }
 
 .text-display p:last-child {

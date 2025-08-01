@@ -23,25 +23,31 @@ export const DEFAULT_PAGE_CONFIG = {
   // 页眉页脚
   header: {
     enabled: false,
-    content: "",
     height: 15, // mm
+    components: [], // 页眉中的组件
     style: {
-      fontSize: 12,
-      fontFamily: "Arial",
-      color: "#333333",
-      textAlign: "center",
+      backgroundColor: "transparent",
+      borderBottom: {
+        enabled: false,
+        width: 1,
+        style: "solid",
+        color: "#e0e0e0",
+      },
     },
   },
 
   footer: {
     enabled: false,
-    content: "",
     height: 15, // mm
+    components: [], // 页脚中的组件
     style: {
-      fontSize: 12,
-      fontFamily: "Arial",
-      color: "#333333",
-      textAlign: "center",
+      backgroundColor: "transparent",
+      borderTop: {
+        enabled: false,
+        width: 1,
+        style: "solid",
+        color: "#e0e0e0",
+      },
     },
   },
 
@@ -185,6 +191,340 @@ export function createPageSchema(config = {}) {
 }
 
 /**
+ * 页眉页脚模板
+ */
+export const HEADER_FOOTER_TEMPLATES = {
+  SIMPLE_TEXT: {
+    name: "简单文本",
+    description: "单行文本，支持页码变量",
+    components: [
+      {
+        type: "layout",
+        preset: "single",
+        columns: [{ width: 100 }],
+        children: [
+          {
+            type: "text",
+            content: "第 {pageNumber} 页，共 {totalPages} 页",
+            columnIndex: 0,
+            style: {
+              margin: { top: 0, bottom: 0, left: 0, right: 0 },
+              padding: { top: 4, bottom: 4, left: 8, right: 8 },
+              fontSize: 12,
+              fontFamily: "Arial",
+              color: "#666666",
+              lineHeight: 1.2,
+              textAlign: "center",
+              fontWeight: "normal",
+              fontStyle: "normal",
+              textDecoration: "none",
+            },
+          },
+        ],
+        style: {
+          margin: { top: 0, bottom: 0, left: 0, right: 0 },
+          padding: { top: 0, bottom: 0, left: 0, right: 0 },
+        },
+      },
+    ],
+  },
+
+  THREE_COLUMN: {
+    name: "三栏布局",
+    description: "左中右三栏，可分别设置内容",
+    components: [
+      {
+        type: "layout",
+        preset: "three",
+        columns: [{ width: 33.33 }, { width: 33.33 }, { width: 33.34 }],
+        children: [
+          {
+            type: "text",
+            content: "文档标题",
+            columnIndex: 0,
+            style: {
+              margin: { top: 0, bottom: 0, left: 0, right: 0 },
+              padding: { top: 4, bottom: 4, left: 8, right: 8 },
+              fontSize: 12,
+              fontFamily: "Arial",
+              color: "#333333",
+              lineHeight: 1.2,
+              textAlign: "left",
+              fontWeight: "normal",
+              fontStyle: "normal",
+              textDecoration: "none",
+            },
+          },
+          {
+            type: "text",
+            content: "{date}",
+            columnIndex: 1,
+            style: {
+              margin: { top: 0, bottom: 0, left: 0, right: 0 },
+              padding: { top: 4, bottom: 4, left: 8, right: 8 },
+              fontSize: 12,
+              fontFamily: "Arial",
+              color: "#666666",
+              lineHeight: 1.2,
+              textAlign: "center",
+              fontWeight: "normal",
+              fontStyle: "normal",
+              textDecoration: "none",
+            },
+          },
+          {
+            type: "text",
+            content: "第 {pageNumber} 页",
+            columnIndex: 2,
+            style: {
+              margin: { top: 0, bottom: 0, left: 0, right: 0 },
+              padding: { top: 4, bottom: 4, left: 8, right: 8 },
+              fontSize: 12,
+              fontFamily: "Arial",
+              color: "#666666",
+              lineHeight: 1.2,
+              textAlign: "right",
+              fontWeight: "normal",
+              fontStyle: "normal",
+              textDecoration: "none",
+            },
+          },
+        ],
+        style: {
+          margin: { top: 0, bottom: 0, left: 0, right: 0 },
+          padding: { top: 0, bottom: 0, left: 0, right: 0 },
+        },
+      },
+    ],
+  },
+
+  LOGO_LEFT: {
+    name: "Logo + 文本",
+    description: "左侧定高Logo，右侧文本信息",
+    components: [
+      {
+        id: "layout_logo_text",
+        type: "layout",
+        preset: "two",
+        columns: [{ width: 25 }, { width: 75 }],
+        children: [
+          {
+            id: "logo_component",
+            type: "image",
+            src: "",
+            alt: "公司Logo",
+            columnIndex: 0,
+            style: {
+              margin: { top: 4, bottom: 4, left: 8, right: 8 },
+              padding: { top: 0, bottom: 0, left: 0, right: 0 },
+              width: 60,
+              height: 35, // 适合页眉的高度
+              objectFit: "contain",
+              borderRadius: 0,
+              border: "none",
+            },
+            keepAspectRatio: true,
+            fixedHeight: true, // 标记为定高显示
+          },
+          {
+            id: "text_component",
+            type: "text",
+            content: "公司名称 - {date}",
+            columnIndex: 1,
+            style: {
+              margin: { top: 0, bottom: 0, left: 0, right: 0 },
+              padding: { top: 12, bottom: 12, left: 16, right: 8 },
+              fontSize: 16,
+              fontFamily: "Microsoft YaHei",
+              color: "#333333",
+              lineHeight: 1.4,
+              textAlign: "left",
+              fontWeight: "600",
+              fontStyle: "normal",
+              textDecoration: "none",
+            },
+          },
+        ],
+        style: {
+          margin: { top: 0, bottom: 0, left: 0, right: 0 },
+          padding: { top: 0, bottom: 0, left: 0, right: 0 },
+          minHeight: 48,
+          maxHeight: 56, // 限制最大高度，适合页眉页脚
+        },
+        alignment: "stretch", // 拉伸对齐，确保高度一致
+      },
+    ],
+  },
+
+  LOGO_CENTER: {
+    name: "居中Logo",
+    description: "Logo居中显示，下方页码信息",
+    components: [
+      {
+        id: "logo_layout",
+        type: "layout",
+        preset: "single",
+        columns: [{ width: 100 }],
+        children: [
+          {
+            id: "center_logo",
+            type: "image",
+            src: "",
+            alt: "公司Logo",
+            columnIndex: 0,
+            style: {
+              margin: { top: 6, bottom: 6, left: 0, right: 0 },
+              padding: { top: 0, bottom: 0, left: 0, right: 0 },
+              width: 80,
+              height: 50,
+              objectFit: "contain",
+              borderRadius: 0,
+              border: "none",
+            },
+            keepAspectRatio: true,
+            fixedHeight: true,
+          },
+        ],
+        style: {
+          margin: { top: 0, bottom: 0, left: 0, right: 0 },
+          padding: { top: 0, bottom: 0, left: 0, right: 0 },
+          minHeight: 62,
+        },
+        alignment: "center",
+      },
+      {
+        id: "page_info_layout",
+        type: "layout",
+        preset: "single",
+        columns: [{ width: 100 }],
+        children: [
+          {
+            id: "page_info_text",
+            type: "text",
+            content: "第 {pageNumber} 页，共 {totalPages} 页",
+            columnIndex: 0,
+            style: {
+              margin: { top: 0, bottom: 0, left: 0, right: 0 },
+              padding: { top: 4, bottom: 4, left: 8, right: 8 },
+              fontSize: 12,
+              fontFamily: "Arial",
+              color: "#666666",
+              lineHeight: 1.2,
+              textAlign: "center",
+              fontWeight: "normal",
+              fontStyle: "normal",
+              textDecoration: "none",
+            },
+          },
+        ],
+        style: {
+          margin: { top: 0, bottom: 0, left: 0, right: 0 },
+          padding: { top: 0, bottom: 0, left: 0, right: 0 },
+          minHeight: 24,
+        },
+        alignment: "center",
+      },
+    ],
+  },
+
+  LOGO_THREE_COLUMN: {
+    name: "Logo三栏",
+    description: "Logo、标题、页码三栏布局",
+    components: [
+      {
+        id: "three_column_layout",
+        type: "layout",
+        preset: "three",
+        columns: [{ width: 20 }, { width: 60 }, { width: 20 }],
+        children: [
+          {
+            id: "left_logo",
+            type: "image",
+            src: "",
+            alt: "公司Logo",
+            columnIndex: 0,
+            style: {
+              margin: { top: 4, bottom: 4, left: 8, right: 4 },
+              padding: { top: 0, bottom: 0, left: 0, right: 0 },
+              width: 50,
+              height: 35,
+              objectFit: "contain",
+              borderRadius: 0,
+              border: "none",
+            },
+            keepAspectRatio: true,
+            fixedHeight: true,
+          },
+          {
+            id: "center_title",
+            type: "text",
+            content: "文档标题",
+            columnIndex: 1,
+            style: {
+              margin: { top: 0, bottom: 0, left: 0, right: 0 },
+              padding: { top: 10, bottom: 10, left: 16, right: 16 },
+              fontSize: 16,
+              fontFamily: "Microsoft YaHei",
+              color: "#333333",
+              lineHeight: 1.4,
+              textAlign: "center",
+              fontWeight: "600",
+              fontStyle: "normal",
+              textDecoration: "none",
+            },
+          },
+          {
+            id: "right_page_number",
+            type: "text",
+            content: "第 {pageNumber} 页",
+            columnIndex: 2,
+            style: {
+              margin: { top: 0, bottom: 0, left: 0, right: 0 },
+              padding: { top: 10, bottom: 10, left: 4, right: 8 },
+              fontSize: 14,
+              fontFamily: "Arial",
+              color: "#666666",
+              lineHeight: 1.4,
+              textAlign: "right",
+              fontWeight: "normal",
+              fontStyle: "normal",
+              textDecoration: "none",
+            },
+          },
+        ],
+        style: {
+          margin: { top: 0, bottom: 0, left: 0, right: 0 },
+          padding: { top: 0, bottom: 0, left: 0, right: 0 },
+          minHeight: 55,
+        },
+        alignment: "stretch",
+      },
+    ],
+  },
+};
+
+/**
+ * 创建页眉页脚模板
+ */
+export function createHeaderFooterFromTemplate(templateKey) {
+  const template = HEADER_FOOTER_TEMPLATES[templateKey];
+  if (!template) {
+    return [];
+  }
+
+  // 深拷贝模板并生成新的ID
+  return JSON.parse(JSON.stringify(template.components)).map((component) => {
+    component.id = generateId();
+    if (component.children) {
+      component.children.forEach((child) => {
+        child.id = generateId();
+      });
+    }
+    return component;
+  });
+}
+
+/**
  * 验证 Schema 结构
  */
 export function validateSchema(schema) {
@@ -206,6 +546,33 @@ export function validateSchema(schema) {
     schema.pages = [createPage({ components: schema.components })];
     schema.currentPageIndex = 0;
     delete schema.components;
+  }
+
+  // 兼容旧版本的页眉页脚格式
+  if (
+    schema.pageConfig.header &&
+    typeof schema.pageConfig.header.content === "string"
+  ) {
+    // 转换为新格式
+    const oldContent = schema.pageConfig.header.content;
+    schema.pageConfig.header.components = oldContent
+      ? createHeaderFooterFromTemplate("SIMPLE_TEXT")
+      : [];
+    delete schema.pageConfig.header.content;
+    delete schema.pageConfig.header.style;
+  }
+
+  if (
+    schema.pageConfig.footer &&
+    typeof schema.pageConfig.footer.content === "string"
+  ) {
+    // 转换为新格式
+    const oldContent = schema.pageConfig.footer.content;
+    schema.pageConfig.footer.components = oldContent
+      ? createHeaderFooterFromTemplate("SIMPLE_TEXT")
+      : [];
+    delete schema.pageConfig.footer.content;
+    delete schema.pageConfig.footer.style;
   }
 
   if (!Array.isArray(schema.pages)) {

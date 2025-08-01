@@ -109,30 +109,23 @@
           </div>
           <div v-if="localConfig.header.enabled">
             <div class="form-group">
-              <label>页眉内容:</label>
+              <label>高度 (mm):</label>
               <input
-                type="text"
-                v-model="localConfig.header.content"
-                placeholder="输入页眉内容"
+                type="number"
+                v-model.number="localConfig.header.height"
+                min="5"
+                max="50"
               />
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>字体大小:</label>
-                <input
-                  type="number"
-                  v-model.number="localConfig.header.style.fontSize"
-                  min="8"
-                  max="24"
-                />
-              </div>
-              <div class="form-group">
-                <label>对齐方式:</label>
-                <select v-model="localConfig.header.style.textAlign">
-                  <option value="left">左对齐</option>
-                  <option value="center">居中</option>
-                  <option value="right">右对齐</option>
-                </select>
+            <div class="form-group">
+              <label>页眉内容:</label>
+              <div class="design-preview">
+                <div class="preview-info">
+                  {{ localConfig.header.components.length }} 个组件
+                </div>
+                <button class="btn btn-design" @click="openHeaderDesigner">
+                  设计页眉
+                </button>
               </div>
             </div>
           </div>
@@ -149,30 +142,23 @@
           </div>
           <div v-if="localConfig.footer.enabled">
             <div class="form-group">
-              <label>页脚内容:</label>
+              <label>高度 (mm):</label>
               <input
-                type="text"
-                v-model="localConfig.footer.content"
-                placeholder="输入页脚内容，使用 {pageNumber} 显示页码"
+                type="number"
+                v-model.number="localConfig.footer.height"
+                min="5"
+                max="50"
               />
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label>字体大小:</label>
-                <input
-                  type="number"
-                  v-model.number="localConfig.footer.style.fontSize"
-                  min="8"
-                  max="24"
-                />
-              </div>
-              <div class="form-group">
-                <label>对齐方式:</label>
-                <select v-model="localConfig.footer.style.textAlign">
-                  <option value="left">左对齐</option>
-                  <option value="center">居中</option>
-                  <option value="right">右对齐</option>
-                </select>
+            <div class="form-group">
+              <label>页脚内容:</label>
+              <div class="design-preview">
+                <div class="preview-info">
+                  {{ localConfig.footer.components.length }} 个组件
+                </div>
+                <button class="btn btn-design" @click="openFooterDesigner">
+                  设计页脚
+                </button>
               </div>
             </div>
           </div>
@@ -236,12 +222,36 @@
         <button class="btn btn-primary" @click="handleSave">保存</button>
       </div>
     </div>
+
+    <!-- 页眉页脚设计器 -->
+    <HeaderFooterDesigner
+      v-if="showHeaderDesigner"
+      type="header"
+      :config="localConfig.header"
+      :page-config="localConfig"
+      @update="handleHeaderUpdate"
+      @close="showHeaderDesigner = false"
+    />
+
+    <HeaderFooterDesigner
+      v-if="showFooterDesigner"
+      type="footer"
+      :config="localConfig.footer"
+      :page-config="localConfig"
+      @update="handleFooterUpdate"
+      @close="showFooterDesigner = false"
+    />
   </div>
 </template>
 
 <script>
+import HeaderFooterDesigner from "./HeaderFooterDesigner.vue";
+
 export default {
   name: "GlobalConfig",
+  components: {
+    HeaderFooterDesigner,
+  },
   props: {
     config: {
       type: Object,
@@ -251,6 +261,8 @@ export default {
   data() {
     return {
       localConfig: JSON.parse(JSON.stringify(this.config)),
+      showHeaderDesigner: false,
+      showFooterDesigner: false,
     };
   },
   methods: {
@@ -267,6 +279,22 @@ export default {
       if (preset) {
         Object.assign(this.localConfig.pageSize, preset);
       }
+    },
+
+    openHeaderDesigner() {
+      this.showHeaderDesigner = true;
+    },
+
+    openFooterDesigner() {
+      this.showFooterDesigner = true;
+    },
+
+    handleHeaderUpdate(updatedConfig) {
+      this.localConfig.header = updatedConfig;
+    },
+
+    handleFooterUpdate(updatedConfig) {
+      this.localConfig.footer = updatedConfig;
     },
 
     handleSave() {
@@ -426,5 +454,32 @@ export default {
 
 .btn-primary:hover {
   background: #40a9ff;
+}
+
+.design-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #f9f9f9;
+}
+
+.preview-info {
+  font-size: 14px;
+  color: #666;
+}
+
+.btn-design {
+  background: #52c41a;
+  color: white;
+  border-color: #52c41a;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-design:hover {
+  background: #73d13d;
 }
 </style>

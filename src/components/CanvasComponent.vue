@@ -212,6 +212,11 @@ export default {
       type: Number,
       default: 1,
     },
+    // 页面配置（用于获取全局样式设置）
+    pageConfig: {
+      type: Object,
+      default: null,
+    },
   },
   watch: {
     component: {
@@ -247,12 +252,20 @@ export default {
         minHeight: "60px",
       };
 
-      // 预览模式下去除边框和背景色
+      // 如果设置了最小高度，应用它
+      if (style.minHeight) {
+        baseStyle.minHeight = `${style.minHeight}px`;
+      }
+
+      // 预览模式下去除边框和背景色，但保持高度控制
       if (this.mode === "preview") {
         return {
           ...baseStyle,
           border: "none",
           background: "transparent",
+          // 在页眉页脚中，限制最大高度以避免溢出
+          maxHeight: style.maxHeight ? `${style.maxHeight}px` : undefined,
+          overflow: "hidden",
         };
       }
 
@@ -270,6 +283,10 @@ export default {
 
     textContentStyle() {
       const style = this.component.style;
+
+      // 获取全局段落间距设置
+      const paragraphSpacing = this.globalParagraphSpacing || 6;
+
       return {
         fontSize: `${style.fontSize}px`,
         fontFamily: style.fontFamily,
@@ -282,7 +299,21 @@ export default {
         width: "100%",
         minHeight: "inherit",
         "--text-color": style.color,
+        "--paragraph-spacing": `${paragraphSpacing}px`,
       };
+    },
+
+    // 计算全局段落间距
+    globalParagraphSpacing() {
+      // 从页面配置中获取段落间距
+      if (
+        this.pageConfig &&
+        this.pageConfig.defaultStyles &&
+        this.pageConfig.defaultStyles.paragraphSpacing
+      ) {
+        return this.pageConfig.defaultStyles.paragraphSpacing;
+      }
+      return 6; // 默认值
     },
 
     textDisplayStyle() {
@@ -314,14 +345,32 @@ export default {
 
     imageStyle() {
       const style = this.component.style;
-      return {
-        width: `${style.width}px`,
-        height: this.component.keepAspectRatio ? "auto" : `${style.height}px`,
+
+      // 检查是否在页眉页脚中，并且设置了定高模式
+      const isInHeaderFooter = this.mode === "preview" || this.mode === "edit";
+      const useFixedHeight = this.component.fixedHeight && isInHeaderFooter;
+
+      let imageStyles = {
         maxWidth: "100%",
         objectFit: style.objectFit,
         borderRadius: `${style.borderRadius}px`,
         border: style.border,
       };
+
+      if (useFixedHeight) {
+        // 定高模式：设置固定高度，宽度自动，保持纵横比
+        imageStyles.height = `${style.height}px`;
+        imageStyles.width = "auto";
+        imageStyles.maxHeight = `${style.height}px`;
+      } else {
+        // 原有逻辑：根据keepAspectRatio决定
+        imageStyles.width = `${style.width}px`;
+        imageStyles.height = this.component.keepAspectRatio
+          ? "auto"
+          : `${style.height}px`;
+      }
+
+      return imageStyles;
     },
 
     // 判断是否可以向上移动

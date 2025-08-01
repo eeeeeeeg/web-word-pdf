@@ -55,7 +55,23 @@
             class="page-header"
             :style="headerStyle"
           >
-            {{ schema.pageConfig.header.content }}
+            <CanvasComponent
+              v-for="(component, componentIndex) in schema.pageConfig.header
+                .components"
+              :key="`header-${component.id}-${component._updateTimestamp || 0}`"
+              :component="
+                processHeaderFooterComponent(
+                  component,
+                  pageIndex + 1,
+                  schema.pages.length
+                )
+              "
+              :selected="false"
+              :mode="mode"
+              :index="componentIndex"
+              :total="schema.pageConfig.header.components.length"
+              :page-config="schema.pageConfig"
+            />
           </div>
 
           <!-- 页面内容区域 -->
@@ -71,6 +87,7 @@
               :mode="mode"
               :index="componentIndex"
               :total="page.components.length"
+              :page-config="schema.pageConfig"
               @select="$emit('component-select', component)"
               @update="update"
               @delete="$emit('component-delete', component.id)"
@@ -95,12 +112,23 @@
             class="page-footer"
             :style="footerStyle"
           >
-            {{
-              formatFooterContent(
-                schema.pageConfig.footer.content,
-                pageIndex + 1
-              )
-            }}
+            <CanvasComponent
+              v-for="(component, componentIndex) in schema.pageConfig.footer
+                .components"
+              :key="`footer-${component.id}-${component._updateTimestamp || 0}`"
+              :component="
+                processHeaderFooterComponent(
+                  component,
+                  pageIndex + 1,
+                  schema.pages.length
+                )
+              "
+              :selected="false"
+              :mode="mode"
+              :index="componentIndex"
+              :total="schema.pageConfig.footer.components.length"
+              :page-config="schema.pageConfig"
+            />
           </div>
         </div>
       </div>
@@ -187,24 +215,18 @@ export default {
     headerStyle() {
       const header = this.schema.pageConfig.header;
       return {
-        height: `${header.height * 3.78}px`,
-        fontSize: `${header.style.fontSize}px`,
-        fontFamily: header.style.fontFamily,
-        color: header.style.color,
-        textAlign: header.style.textAlign,
-        lineHeight: `${header.height * 3.78}px`,
+        minHeight: `${header.height * 3.78}px`,
+        maxHeight: `${header.height * 3.78}px`,
+        backgroundColor: header.style?.backgroundColor || "transparent",
       };
     },
 
     footerStyle() {
       const footer = this.schema.pageConfig.footer;
       return {
-        height: `${footer.height * 3.78}px`,
-        fontSize: `${footer.style.fontSize}px`,
-        fontFamily: footer.style.fontFamily,
-        color: footer.style.color,
-        textAlign: footer.style.textAlign,
-        lineHeight: `${footer.height * 3.78}px`,
+        minHeight: `${footer.height * 3.78}px`,
+        maxHeight: `${footer.height * 3.78}px`,
+        backgroundColor: footer.style?.backgroundColor || "transparent",
       };
     },
   },
@@ -271,6 +293,42 @@ export default {
     formatFooterContent(content, pageNumber) {
       // 替换页码占位符
       return content.replace("{pageNumber}", pageNumber.toString());
+    },
+
+    processHeaderFooterComponent(component, pageNumber, totalPages) {
+      // 深拷贝组件以避免修改原始数据
+      const processedComponent = JSON.parse(JSON.stringify(component));
+
+      // 递归处理组件及其子组件中的变量
+      this.replaceVariablesInComponent(
+        processedComponent,
+        pageNumber,
+        totalPages
+      );
+
+      return processedComponent;
+    },
+
+    replaceVariablesInComponent(component, pageNumber, totalPages) {
+      const now = new Date();
+      const date = now.toLocaleDateString("zh-CN");
+      const time = now.toLocaleTimeString("zh-CN");
+
+      // 替换文本组件的内容
+      if (component.type === "text" && component.content) {
+        component.content = component.content
+          .replace(/\{pageNumber\}/g, pageNumber.toString())
+          .replace(/\{totalPages\}/g, totalPages.toString())
+          .replace(/\{date\}/g, date)
+          .replace(/\{time\}/g, time);
+      }
+
+      // 递归处理子组件
+      if (component.children && Array.isArray(component.children)) {
+        component.children.forEach((child) => {
+          this.replaceVariablesInComponent(child, pageNumber, totalPages);
+        });
+      }
     },
 
     handlePageClick(event) {
@@ -465,10 +523,12 @@ export default {
   left: 0;
   right: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   border-bottom: 1px solid #f0f0f0;
   background: rgba(248, 248, 248, 0.8);
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .page-footer {
@@ -477,10 +537,12 @@ export default {
   left: 0;
   right: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   border-top: 1px solid #f0f0f0;
   background: rgba(248, 248, 248, 0.8);
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .page-content {
