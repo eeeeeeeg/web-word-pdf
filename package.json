@@ -5,7 +5,14 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "dev": "node start-dev.js",
+    "start": "npm run dev",
+    "server:install": "cd server && npm install",
+    "server:dev": "cd server && npm run dev",
+    "server:start": "cd server && npm start",
+    "setup": "npm install && npm run server:install",
+    "test": "cd server && npm test"
   },
   "dependencies": {
     "@tinymce/tinymce-vue": "^3.2.8",

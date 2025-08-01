@@ -1,0 +1,50 @@
+{
+  "name": "web-word-pdf-server",
+  "version": "1.0.0",
+  "description": "Node.js服务端，支持Playwright导出PDF、Word、PPT功能",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest",
+    "install-browsers": "npx playwright install"
+  },
+  "keywords": [
+    "nodejs",
+    "playwright",
+    "pdf",
+    "word",
+    "ppt",
+    "export",
+    "document"
+  ],
+  "author": "Web Word PDF Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "playwright": "^1.40.0",
+    "puppeteer": "^21.5.0",
+    "officegen": "^0.6.5",
+    "pptxgenjs": "^3.12.0",
+    "docx": "^8.5.0",
+    "jszip": "^3.10.1",
+    "uuid": "^9.0.1",
+    "fs-extra": "^11.1.1",
+    "path": "^0.12.7",
+    "helmet": "^7.1.0",
+    "compression": "^1.7.4",
+    "morgan": "^1.10.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

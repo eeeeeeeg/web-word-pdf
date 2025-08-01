@@ -216,7 +216,50 @@ function compressShareData(schema) {
 }
 ```
 
+## 🖥️ 服务器端
 
+### Node.js 导出服务
+
+项目包含一个完整的 Node.js 服务器，支持高质量的文档导出功能：
+
+```
+server/
+├── index.js              # 服务器入口
+├── routes/               # API路由
+│   ├── export.js        # 导出接口
+│   └── health.js        # 健康检查
+├── services/            # 导出服务
+│   ├── PDFExportService.js   # PDF导出
+│   ├── WordExportService.js  # Word导出
+│   └── PPTExportService.js   # PPT导出
+└── tests/               # 测试文件
+```
+
+### 导出功能特性
+
+- **PDF 导出**：基于 Playwright 的高质量 PDF 生成
+- **Word 导出**：生成标准 DOCX 格式文档
+- **PPT 导出**：创建 PowerPoint 演示文稿
+- **批量导出**：同时导出多种格式
+- **样式保持**：完整保留原始样式和布局
+
+### 服务器启动
+
+```bash
+# 进入服务器目录
+cd server
+
+# 安装依赖
+npm install
+
+# 安装浏览器
+npm run install-browsers
+
+# 启动服务
+npm run dev
+
+# 服务运行在 http://localhost:3001
+```
 
 ## 🤝 贡献指南
 
@@ -233,6 +276,5 @@ function compressShareData(schema) {
 ## 📄 许可证
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
 
 ⭐ 如果这个项目对你有帮助，请给我们一个星标！
