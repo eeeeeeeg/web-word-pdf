@@ -131,6 +131,7 @@
             @component-move="handleComponentMove"
             @page-select="switchPage"
             @page-add="addPage"
+            @page-copy="copyPage"
             @page-delete="deletePage"
           />
         </div>
@@ -777,6 +778,81 @@ export default {
       this.pageSchema.currentPageIndex = this.pageSchema.pages.length - 1;
       this.selectedComponent = null;
       this.markAsChanged();
+    },
+
+    copyPage(index) {
+      if (index < 0 || index >= this.pageSchema.pages.length) {
+        alert("无效的页面索引");
+        return;
+      }
+
+      const sourcePage = this.pageSchema.pages[index];
+
+      // 深度复制页面数据
+      const copiedPage = this.deepCopyPage(sourcePage);
+
+      // 设置新页面的名称
+      copiedPage.name = `${sourcePage.name} - 副本`;
+
+      // 在当前页面后插入复制的页面
+      this.pageSchema.pages.splice(index + 1, 0, copiedPage);
+
+      // 切换到新复制的页面
+      this.pageSchema.currentPageIndex = index + 1;
+      this.selectedComponent = null;
+      this.markAsChanged();
+
+      console.log(`页面 "${sourcePage.name}" 已复制`);
+    },
+
+    // 深度复制页面数据
+    deepCopyPage(sourcePage) {
+      // 生成新的页面ID
+      const newPageId = this.generateId();
+
+      // 复制页面基本信息
+      const copiedPage = {
+        id: newPageId,
+        name: sourcePage.name,
+        components: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // 深度复制所有组件
+      copiedPage.components = sourcePage.components.map((component) =>
+        this.deepCopyComponent(component)
+      );
+
+      return copiedPage;
+    },
+
+    // 深度复制组件数据
+    deepCopyComponent(sourceComponent) {
+      const newComponentId = this.generateId();
+
+      // 复制组件基本数据
+      const copiedComponent = {
+        ...sourceComponent,
+        id: newComponentId,
+        _updateTimestamp: Date.now(), // 更新时间戳以触发重新渲染
+      };
+
+      // 如果是布局组件，递归复制子组件
+      if (sourceComponent.type === "layout" && sourceComponent.children) {
+        copiedComponent.children = sourceComponent.children.map((child) =>
+          this.deepCopyComponent(child)
+        );
+      }
+
+      return copiedComponent;
+    },
+
+    // 生成唯一ID的辅助方法
+    generateId() {
+      return (
+        "comp_" + Math.random().toString(36).substring(2, 11) + "_" + Date.now()
+      );
     },
 
     deletePage(index) {

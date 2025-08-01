@@ -29,6 +29,13 @@
               选择
             </button>
             <button
+              class="page-action-btn copy-btn"
+              @click="$emit('page-copy', pageIndex)"
+              title="复制页面"
+            >
+              复制
+            </button>
+            <button
               v-if="schema.pages.length > 1"
               class="page-action-btn delete-btn"
               @click="$emit('page-delete', pageIndex)"
@@ -497,10 +504,26 @@ export default {
   border-color: #1890ff;
 }
 
-.page-action-btn.delete-btn:hover {
+.page-action-btn.copy-btn {
+  background: #52c41a;
+  color: white;
+  border-color: #52c41a;
+}
+
+.page-action-btn.copy-btn:hover {
+  background: #73d13d;
+  border-color: #73d13d;
+}
+
+.page-action-btn.delete-btn {
   background: #ff4d4f;
   color: white;
   border-color: #ff4d4f;
+}
+
+.page-action-btn.delete-btn:hover {
+  background: #ff7875;
+  border-color: #ff7875;
 }
 
 .page {
