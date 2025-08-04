@@ -336,10 +336,25 @@ export default {
 
     imageContainerStyle() {
       const style = this.component.style;
+      const alignment = this.component.alignment || "left";
+
+      // 根据对齐方式设置 flexbox 对齐
+      let justifyContent = "flex-start";
+      if (alignment === "left") {
+        justifyContent = "flex-start";
+      } else if (alignment === "right") {
+        justifyContent = "flex-end";
+      } else if (alignment === "center") {
+        justifyContent = "center";
+      }
+
       return {
         margin: `${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px`,
         padding: `${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px`,
-        textAlign: "center",
+        display: "flex",
+        justifyContent: justifyContent,
+        alignItems: "flex-start",
+        width: "100%",
       };
     },
 
@@ -355,6 +370,7 @@ export default {
         objectFit: style.objectFit,
         borderRadius: `${style.borderRadius}px`,
         border: style.border,
+        flexShrink: 0, // 防止图片被 flexbox 压缩
       };
 
       if (useFixedHeight) {

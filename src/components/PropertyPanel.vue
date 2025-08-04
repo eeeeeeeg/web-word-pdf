@@ -137,6 +137,18 @@
               <option value="scale-down">缩小</option>
             </select>
           </div>
+
+          <div class="form-group">
+            <label>对齐方式:</label>
+            <select
+              v-model="localComponent.alignment"
+              @change="updateComponent"
+            >
+              <option value="left">居左</option>
+              <option value="center">居中</option>
+              <option value="right">居右</option>
+            </select>
+          </div>
         </div>
 
         <!-- 通用样式属性 -->

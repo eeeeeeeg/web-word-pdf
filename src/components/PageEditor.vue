@@ -1339,9 +1339,25 @@ export default {
 
     generateImageHTML(component) {
       const style = component.style;
+      const alignment = component.alignment || "left";
+
+      // 根据对齐方式设置 flexbox 对齐
+      let justifyContent = "flex-start";
+      if (alignment === "left") {
+        justifyContent = "flex-start";
+      } else if (alignment === "right") {
+        justifyContent = "flex-end";
+      } else if (alignment === "center") {
+        justifyContent = "center";
+      }
+
       const containerStyle = `
         margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
         padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
+        display: flex;
+        justify-content: ${justifyContent};
+        align-items: flex-start;
+        width: 100%;
       `;
 
       const imageStyle = `
@@ -1350,12 +1366,13 @@ export default {
         object-fit: ${style.objectFit};
         border-radius: ${style.borderRadius}px;
         border: ${style.border};
+        flex-shrink: 0;
       `;
 
       if (!component.src) {
         return `
           <div class="image-component" style="${containerStyle}">
-            <div style="border: 2px dashed #d0d0d0; padding: 20px; text-align: center; color: #999;">
+            <div style="border: 2px dashed #d0d0d0; padding: 20px; text-align: center; color: #999; flex: 1;">
               图片未加载
             </div>
           </div>
