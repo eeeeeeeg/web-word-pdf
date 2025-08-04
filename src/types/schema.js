@@ -14,10 +14,10 @@ export const DEFAULT_PAGE_CONFIG = {
 
   // 页面边距
   margins: {
-    top: 20, // mm
-    bottom: 20,
-    left: 20,
-    right: 20,
+    top: 5, // mm
+    bottom: 5,
+    left: 5,
+    right: 5,
   },
 
   // 页眉页脚
