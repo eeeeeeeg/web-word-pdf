@@ -146,7 +146,7 @@
 
     <!-- 选中状态的操作按钮 -->
     <div v-if="selected && mode === 'edit'" class="component-actions">
-      <!-- 布局组件的排序按钮 -->
+      <!-- 布局组件的排序按钮和复制按钮（仅布局组件显示） -->
       <template v-if="component.type === 'layout'">
         <button
           class="action-btn sort-btn"
@@ -163,6 +163,13 @@
           :disabled="!canMoveDown"
         >
           ↓
+        </button>
+        <button
+          class="action-btn layout-copy-btn"
+          @click.stop="handleCopy"
+          title="复制布局组件"
+        >
+          📋
         </button>
       </template>
 
@@ -417,6 +424,10 @@ export default {
   methods: {
     handleDelete() {
       this.$emit("delete", this.component.id);
+    },
+
+    handleCopy() {
+      this.$emit("copy", this.component);
     },
 
     // 向上移动组件
@@ -1163,6 +1174,16 @@ export default {
   font-size: 16px;
   font-weight: bold;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.layout-copy-btn {
+  background: #52c41a;
+  color: white;
+  font-size: 12px;
+}
+
+.layout-copy-btn:hover {
+  background: #73d13d;
 }
 
 .delete-btn {

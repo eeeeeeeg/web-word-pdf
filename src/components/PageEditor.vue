@@ -127,6 +127,7 @@
             @component-drop-adjacent="handleComponentDropAdjacent"
             @component-update="handleComponentUpdate"
             @component-delete="handleComponentDelete"
+            @component-copy="handleComponentCopy"
             @component-sort="handleComponentSort"
             @component-move="handleComponentMove"
             @page-select="switchPage"
@@ -458,6 +459,43 @@ export default {
       this.markAsChanged();
     },
 
+    handleComponentCopy(data) {
+      const { component, pageIndex } = data;
+
+      // 只允许复制布局组件
+      if (component.type !== "layout") {
+        console.warn("只有布局组件支持复制功能");
+        return;
+      }
+
+      // 深度复制布局组件
+      const copiedComponent = this.deepCopyComponent(component);
+
+      // 获取目标页面
+      const targetPageIndex =
+        pageIndex !== undefined ? pageIndex : this.pageSchema.currentPageIndex;
+      const targetPage = this.pageSchema.pages[targetPageIndex];
+
+      // 布局组件总是根级别组件，直接添加到页面
+      const originalIndex = targetPage.components.findIndex(
+        (c) => c.id === component.id
+      );
+      if (originalIndex !== -1) {
+        // 在原布局组件后面插入复制的组件
+        targetPage.components.splice(originalIndex + 1, 0, copiedComponent);
+      } else {
+        // 如果找不到原组件，就添加到末尾
+        targetPage.components.push(copiedComponent);
+      }
+
+      // 选中新复制的布局组件
+      this.selectedComponent = copiedComponent;
+      this.updateTimestamp();
+      this.markAsChanged();
+
+      console.log(`布局组件已复制: ${component.id} -> ${copiedComponent.id}`);
+    },
+
     handleComponentSort(sortData) {
       const { draggedComponentId, targetComponentId, position, pageIndex } =
         sortData;
@@ -539,18 +577,53 @@ export default {
     },
 
     deleteComponentById(components, id) {
+      console.log(
+        "wang ---------------- components",
+        JSON.stringify(components)
+      );
+      console.log("wang ---------------- id", id);
+
+      // 首先在所有布局组件的子组件中查找
+      for (let i = 0; i < components.length; i++) {
+        if (components[i].children && components[i].type === "layout") {
+          // 在布局组件的子组件中查找
+          for (let j = 0; j < components[i].children.length; j++) {
+            if (components[i].children[j].id === id) {
+              // 找到要删除的子组件（内容组件）
+              const childToDelete = components[i].children[j];
+
+              // 只删除内容组件，保留布局组件
+              if (
+                childToDelete.type === "text" ||
+                childToDelete.type === "image"
+              ) {
+                console.log(`删除布局组件内的${childToDelete.type}组件:`, id);
+                components[i].children.splice(j, 1);
+                return true;
+              }
+            }
+          }
+
+          // 继续递归查找（如果有嵌套布局）
+          if (this.deleteComponentById(components[i].children, id)) {
+            return true;
+          }
+        }
+      }
+
+      // 然后在根级别查找
       for (let i = 0; i < components.length; i++) {
         if (components[i].id === id) {
+          // 找到要删除的组件
+          const componentToDelete = components[i];
+          console.log(`删除根级别组件:`, componentToDelete.type, id);
+
+          // 直接删除根级别组件（布局组件或内容组件）
           components.splice(i, 1);
           return true;
         }
-        if (
-          components[i].children &&
-          this.deleteComponentById(components[i].children, id)
-        ) {
-          return true;
-        }
       }
+
       return false;
     },
 

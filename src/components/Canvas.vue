@@ -97,7 +97,12 @@
               :page-config="schema.pageConfig"
               @select="$emit('component-select', component)"
               @update="update"
-              @delete="$emit('component-delete', component.id)"
+              @delete="
+                (componentId) => {
+                  $emit('component-delete', componentId);
+                }
+              "
+              @copy="(component) => handleComponentCopy(component, pageIndex)"
               @drop="(data) => handleComponentDrop(data, pageIndex)"
               @drop-adjacent="
                 (data) => handleComponentDropAdjacent(data, pageIndex)
@@ -295,6 +300,10 @@ export default {
 
     handleComponentMove(moveData, pageIndex) {
       this.$emit("component-move", { ...moveData, pageIndex });
+    },
+
+    handleComponentCopy(component, pageIndex) {
+      this.$emit("component-copy", { component, pageIndex });
     },
 
     formatFooterContent(content, pageNumber) {

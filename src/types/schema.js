@@ -147,7 +147,7 @@ export function createComponent(type, options = {}) {
           border: options.border || "none",
         },
         keepAspectRatio: options.keepAspectRatio !== false,
-        alignment: options.alignment || "left", // 新增：图片对齐方式
+        alignment: options.alignment || "center", // 图片对齐方式，默认居中
       };
 
     default:
@@ -326,7 +326,7 @@ export const HEADER_FOOTER_TEMPLATES = {
             },
             keepAspectRatio: true,
             fixedHeight: true, // 标记为定高显示
-            alignment: "left", // 新增：图片对齐方式
+            alignment: "center", // 新增：图片对齐方式，默认居中
           },
           {
             id: "text_component",
@@ -457,7 +457,7 @@ export const HEADER_FOOTER_TEMPLATES = {
             },
             keepAspectRatio: true,
             fixedHeight: true,
-            alignment: "left", // 新增：图片对齐方式
+            alignment: "center", // 新增：图片对齐方式，默认居中
           },
           {
             id: "center_title",
