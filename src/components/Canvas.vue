@@ -13,21 +13,17 @@
         }"
       >
         <!-- 页面标题栏 -->
-        <div
-          class="page-title-bar"
-          v-if="mode === 'edit'"
-          @click="$emit('page-select', pageIndex)"
-        >
+        <div class="page-title-bar" v-if="mode === 'edit'">
           <span class="page-title">{{ page.name }}</span>
           <div class="page-actions">
-            <button
+            <!-- <button
               class="page-action-btn"
               @click="$emit('page-select', pageIndex)"
               :class="{ active: pageIndex === schema.currentPageIndex }"
               title="选择此页面"
             >
               选择
-            </button>
+            </button> -->
             <button
               class="page-action-btn copy-btn"
               @click="$emit('page-copy', pageIndex)"
@@ -54,7 +50,7 @@
           @dragover="handleDragOver"
           @dragenter="handleDragEnter"
           @dragleave="handleDragLeave"
-          @click="handlePageClick"
+          @click="(e) => handlePageClick(e, pageIndex)"
         >
           <!-- 页眉 -->
           <div
@@ -347,7 +343,8 @@ export default {
       }
     },
 
-    handlePageClick(event) {
+    handlePageClick(event, pageIndex) {
+      pageIndex;
       if (this.mode !== "edit") return;
 
       // 查找最具体的组件

@@ -12,7 +12,9 @@
     :data-component-type="component.type"
     :draggable="mode === 'edit' && component.type !== 'text'"
     @dragstart="component.type !== 'text' ? handleDragStart : null"
-    @dragend="component.type !== 'text' ? handleDragEnd : null"
+    @dragend="
+      component.type !== 'text' ? handleDragEnd : (dragOverPosition = null)
+    "
     @dragover="handleSortDragOver"
     @drop="handleSortDrop"
     @dragenter="handleSortDragEnter"
