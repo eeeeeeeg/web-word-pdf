@@ -330,7 +330,7 @@ export default {
       return {
         width: "100%",
         minHeight: "60px",
-        padding: "0",
+        padding: "0px",
         lineHeight: "1.5",
         fontFamily: "Arial, sans-serif",
         fontSize: "14px",
@@ -380,7 +380,6 @@ export default {
         objectFit: style.objectFit,
         borderRadius: `${style.borderRadius}px`,
         border: style.border,
-        flexShrink: 0, // 防止图片被 flexbox 压缩
       };
 
       if (useFixedHeight) {
@@ -469,7 +468,7 @@ export default {
           ...baseStyle,
           border: "none",
           minHeight: "auto",
-          padding: "0",
+          padding: "8px",
         };
       }
 

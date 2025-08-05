@@ -1439,7 +1439,6 @@ export default {
         object-fit: ${style.objectFit};
         border-radius: ${style.borderRadius}px;
         border: ${style.border};
-        flex-shrink: 0;
       `;
 
       if (!component.src) {
