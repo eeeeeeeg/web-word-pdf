@@ -285,7 +285,8 @@ export default {
       const style = this.component.style;
       return {
         margin: `${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px`,
-        padding: `${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px`,
+        // padding: `${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px`,
+        padding: `8px`,
         minHeight: "24px",
       };
     },
@@ -1162,6 +1163,7 @@ export default {
   right: -12px;
   display: flex;
   gap: 4px;
+  z-index: 1000;
 }
 
 .action-btn {

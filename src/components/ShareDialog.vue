@@ -35,17 +35,17 @@
         <div class="share-options">
           <div class="form-group">
             <label>分享标题:</label>
-            <input 
-              type="text" 
-              v-model="shareTitle" 
+            <input
+              type="text"
+              v-model="shareTitle"
               placeholder="请输入分享标题"
               maxlength="50"
             />
           </div>
           <div class="form-group">
             <label>分享描述:</label>
-            <textarea 
-              v-model="shareDescription" 
+            <textarea
+              v-model="shareDescription"
               placeholder="请输入分享描述（可选）"
               maxlength="200"
               rows="3"
@@ -66,19 +66,15 @@
         <div class="share-link-section" v-if="shareUrl">
           <label>分享链接:</label>
           <div class="link-container">
-            <input 
-              type="text" 
-              :value="shareUrl" 
-              readonly 
+            <input
+              type="text"
+              :value="shareUrl"
+              readonly
               ref="linkInput"
               class="share-link-input"
             />
-            <button 
-              class="copy-btn" 
-              @click="copyLink"
-              :disabled="copying"
-            >
-              {{ copying ? '复制中...' : (copied ? '已复制' : '复制') }}
+            <button class="copy-btn" @click="copyLink" :disabled="copying">
+              {{ copying ? "复制中..." : copied ? "已复制" : "复制" }}
             </button>
           </div>
           <div class="link-info">
@@ -94,12 +90,12 @@
 
       <div class="dialog-footer">
         <button class="btn btn-cancel" @click="$emit('close')">取消</button>
-        <button 
-          class="btn btn-primary" 
+        <button
+          class="btn btn-primary"
           @click="generateShareLink"
           :disabled="generating"
         >
-          {{ generating ? '生成中...' : '生成分享链接' }}
+          {{ generating ? "生成中..." : "生成分享链接" }}
         </button>
       </div>
     </div>
@@ -107,10 +103,10 @@
 </template>
 
 <script>
-import { ShareManager } from '../utils/shareManager.js';
+import { ShareManager } from "../utils/shareManager.js";
 
 export default {
-  name: 'ShareDialog',
+  name: "ShareDialog",
   props: {
     schema: {
       type: Object,
@@ -119,28 +115,30 @@ export default {
   },
   data() {
     return {
-      shareTitle: '我的页面设计',
-      shareDescription: '',
+      shareTitle: "我的页面设计",
+      shareDescription: "",
       expiresIn: 7 * 24 * 60 * 60 * 1000, // 默认7天
-      shareUrl: '',
+      shareUrl: "",
       generating: false,
       copying: false,
       copied: false,
-      error: '',
+      error: "",
     };
   },
   computed: {
     shareStats() {
-      return ShareManager.getShareStats(this.schema) || {
-        pageCount: 0,
-        componentCount: 0,
-        hasHeader: false,
-        hasFooter: false,
-        pageSize: 'Unknown',
-      };
+      return (
+        ShareManager.getShareStats(this.schema) || {
+          pageCount: 0,
+          componentCount: 0,
+          hasHeader: false,
+          hasFooter: false,
+          pageSize: "Unknown",
+        }
+      );
     },
     expirationDate() {
-      if (!this.shareUrl) return '';
+      if (!this.shareUrl) return "";
       const expireTime = Date.now() + this.expiresIn;
       return new Date(expireTime).toLocaleString();
     },
@@ -148,12 +146,12 @@ export default {
   methods: {
     async generateShareLink() {
       this.generating = true;
-      this.error = '';
-      
+      this.error = "";
+
       try {
         // 验证数据
         if (!ShareManager.validateSchema(this.schema)) {
-          throw new Error('页面设计数据无效');
+          throw new Error("页面设计数据无效");
         }
 
         // 生成分享链接
@@ -164,13 +162,12 @@ export default {
         };
 
         this.shareUrl = ShareManager.generateShareLink(this.schema, options);
-        
+
         // 重置复制状态
         this.copied = false;
-        
       } catch (error) {
-        this.error = error.message || '生成分享链接失败';
-        console.error('生成分享链接失败:', error);
+        this.error = error.message || "生成分享链接失败";
+        console.error("生成分享链接失败:", error);
       } finally {
         this.generating = false;
       }
@@ -178,22 +175,22 @@ export default {
 
     async copyLink() {
       if (!this.shareUrl) return;
-      
+
       this.copying = true;
-      
+
       try {
         const success = await ShareManager.copyToClipboard(this.shareUrl);
-        
+
         if (success) {
           this.copied = true;
           setTimeout(() => {
             this.copied = false;
           }, 3000);
         } else {
-          this.error = '复制到剪贴板失败，请手动复制';
+          this.error = "复制到剪贴板失败，请手动复制";
         }
       } catch (error) {
-        this.error = '复制失败: ' + error.message;
+        this.error = "复制失败: " + error.message;
       } finally {
         this.copying = false;
       }
@@ -213,7 +210,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 2000;
 }
 
 .share-dialog {

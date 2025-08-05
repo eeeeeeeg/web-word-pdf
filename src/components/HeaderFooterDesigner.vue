@@ -763,8 +763,8 @@ export default {
 
 .area-label {
   position: absolute;
-  top: -12px;
-  left: 16px;
+  top: -2px;
+  left: 0px;
   background: white;
   padding: 2px 8px;
   font-size: 12px;

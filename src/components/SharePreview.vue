@@ -57,7 +57,7 @@
       <div class="preview-content">
         <div class="content-layout">
           <!-- 缩略图侧边栏 -->
-          <div class="thumbnail-sidebar" v-if="showThumbnails">
+          <!-- <div class="thumbnail-sidebar" v-if="showThumbnails">
             <div class="sidebar-header">
               <h4>页面导航</h4>
               <button class="close-sidebar-btn" @click="toggleThumbnails">
@@ -74,7 +74,6 @@
               >
                 <div class="thumbnail-preview">
                   <div class="thumbnail-page" :style="getThumbnailStyle()">
-                    <!-- 直接渲染页面缩略图 -->
                     <div
                       class="thumbnail-canvas-container"
                       :style="getThumbnailCanvasStyle()"
@@ -101,7 +100,7 @@
                 <div class="thumbnail-label">第 {{ index + 1 }} 页</div>
               </div>
             </div>
-          </div>
+          </div> -->
 
           <!-- 主内容区域 -->
           <div class="main-content" :class="{ 'with-sidebar': showThumbnails }">
@@ -831,7 +830,6 @@ export default {
 }
 
 .main-content.with-sidebar {
-  margin-left: 280px;
   padding-left: 0;
 }
 
