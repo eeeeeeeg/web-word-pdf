@@ -1,6 +1,6 @@
-const { chromium } = require('playwright');
-const fs = require('fs-extra');
-const path = require('path');
+const { chromium } = require("playwright");
+const fs = require("fs-extra");
+const path = require("path");
 
 class PDFExportService {
   /**
@@ -10,25 +10,25 @@ class PDFExportService {
    * @param {string} taskId - 任务ID
    * @returns {Buffer} PDF文件缓冲区
    */
-  static async exportToPDF(htmlContent, options = {}, taskId = 'unknown') {
+  static async exportToPDF(htmlContent, options = {}, taskId = "unknown") {
     let browser = null;
     let page = null;
 
     try {
       console.log(`[${taskId}] 启动浏览器...`);
-      
+
       // 启动浏览器
       browser = await chromium.launch({
         headless: true,
         args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu'
-        ]
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-accelerated-2d-canvas",
+          "--no-first-run",
+          "--no-zygote",
+          "--disable-gpu",
+        ],
       });
 
       page = await browser.newPage();
@@ -36,7 +36,7 @@ class PDFExportService {
       // 设置视口
       await page.setViewportSize({
         width: options.viewportWidth || 1200,
-        height: options.viewportHeight || 800
+        height: options.viewportHeight || 800,
       });
 
       console.log(`[${taskId}] 加载HTML内容...`);
@@ -46,8 +46,8 @@ class PDFExportService {
 
       // 加载HTML内容
       await page.setContent(fullHtml, {
-        waitUntil: 'networkidle',
-        timeout: 30000
+        waitUntil: "networkidle",
+        timeout: 30000,
       });
 
       // 等待字体加载
@@ -57,28 +57,26 @@ class PDFExportService {
 
       // PDF生成选项
       const pdfOptions = {
-        format: options.format || 'A4',
-        landscape: options.orientation === 'landscape',
+        format: options.format || "A4",
+        landscape: options.orientation === "landscape",
         margin: options.margin || {
-          top: '1cm',
-          right: '1cm',
-          bottom: '1cm',
-          left: '1cm'
+          top: "1cm",
+          right: "1cm",
+          bottom: "1cm",
+          left: "1cm",
         },
         printBackground: options.printBackground !== false,
         displayHeaderFooter: options.displayHeaderFooter || false,
-        headerTemplate: options.headerTemplate || '',
-        footerTemplate: options.footerTemplate || '',
+        headerTemplate: options.headerTemplate || "",
+        footerTemplate: options.footerTemplate || "",
         scale: options.scale || 1,
-        preferCSSPageSize: options.preferCSSPageSize || false
+        preferCSSPageSize: options.preferCSSPageSize || false,
       };
 
       // 生成PDF
       const pdfBuffer = await page.pdf(pdfOptions);
-
       console.log(`[${taskId}] PDF生成成功，大小: ${pdfBuffer.length} bytes`);
       return pdfBuffer;
-
     } catch (error) {
       console.error(`[${taskId}] PDF导出失败:`, error);
       throw new Error(`PDF导出失败: ${error.message}`);
@@ -108,13 +106,13 @@ class PDFExportService {
    * @param {string} taskId - 任务ID
    * @returns {Buffer} PDF文件缓冲区
    */
-  static async exportFromSchema(schema, options = {}, taskId = 'unknown') {
+  static async exportFromSchema(schema, options = {}, taskId = "unknown") {
     try {
       console.log(`[${taskId}] 从Schema生成HTML...`);
-      
+
       // 将Schema转换为HTML
       const htmlContent = this.convertSchemaToHTML(schema, options);
-      
+
       // 导出PDF
       return await this.exportToPDF(htmlContent, options, taskId);
     } catch (error) {
@@ -131,7 +129,7 @@ class PDFExportService {
    */
   static wrapHTMLContent(htmlContent, options = {}) {
     // 检查是否已经是完整的HTML文档
-    if (htmlContent.includes('<!DOCTYPE') || htmlContent.includes('<html')) {
+    if (htmlContent.includes("<!DOCTYPE") || htmlContent.includes("<html")) {
       return htmlContent;
     }
 
@@ -176,14 +174,12 @@ class PDFExportService {
           body {
             padding: 0;
           }
-          .page {
-            page-break-after: always;
-          }
-          .page:last-child {
-            page-break-after: auto;
+          /* 移除 .page 的 page-break-after 样式 */
+          .page-break { /* 新增的 page-break 样式 */
+            page-break-before: always;
           }
         }
-        ${options.customCSS || ''}
+        ${options.customCSS || ""}
       </style>
     `;
 
@@ -193,7 +189,7 @@ class PDFExportService {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${options.title || 'Document'}</title>
+        <title>${options.title || "Document"}</title>
         ${baseStyles}
       </head>
       <body>
@@ -211,15 +207,20 @@ class PDFExportService {
    */
   static convertSchemaToHTML(schema, options = {}) {
     if (!schema || !schema.pages) {
-      throw new Error('无效的Schema数据');
+      throw new Error("无效的Schema数据");
     }
 
-    let html = '';
+    let html = "";
 
     // 处理每个页面
     schema.pages.forEach((page, pageIndex) => {
+      // 在除第一页之外的每一页之前添加分页符
+      if (pageIndex > 0) {
+        html += `<div class="page-break"></div>`;
+      }
+
       html += `<div class="page" data-page="${pageIndex + 1}">`;
-      
+
       // 添加页面标题（可选）
       if (options.includePageTitles && page.name) {
         html += `<h1 class="page-title">${this.escapeHtml(page.name)}</h1>`;
@@ -227,12 +228,12 @@ class PDFExportService {
 
       // 处理页面组件
       if (page.components && page.components.length > 0) {
-        page.components.forEach(component => {
+        page.components.forEach((component) => {
           html += this.convertComponentToHTML(component);
         });
       }
 
-      html += '</div>';
+      html += "</div>";
     });
 
     return html;
@@ -245,33 +246,41 @@ class PDFExportService {
    */
   static convertComponentToHTML(component) {
     if (!component || !component.type) {
-      return '';
+      return "";
     }
 
     const style = this.buildComponentStyle(component.style || {});
     const className = `component ${component.type}-component`;
 
     switch (component.type) {
-      case 'text':
-        return `<div class="${className}" style="${style}">${component.content || ''}</div>`;
-      
-      case 'image':
-        const imgSrc = component.src || component.content || '';
-        const imgAlt = component.alt || 'Image';
-        return `<div class="${className}" style="${style}"><img src="${imgSrc}" alt="${this.escapeHtml(imgAlt)}" /></div>`;
-      
-      case 'layout':
+      case "text":
+        return `<div class="${className}" style="${style}">${
+          component.content || ""
+        }</div>`;
+
+      case "image":
+        const imgSrc = component.src || component.content || "";
+        const imgAlt = component.alt || "Image";
+        return `<div class="${className}" style="${style}"><img src="${imgSrc}" alt="${this.escapeHtml(
+          imgAlt
+        )}" /></div>`;
+
+      case "layout":
         let layoutHtml = `<div class="${className}" style="${style}">`;
         if (component.children && component.children.length > 0) {
-          component.children.forEach(child => {
-            layoutHtml += `<div class="layout-column">${this.convertComponentToHTML(child)}</div>`;
+          component.children.forEach((child) => {
+            layoutHtml += `<div class="layout-column">${this.convertComponentToHTML(
+              child
+            )}</div>`;
           });
         }
-        layoutHtml += '</div>';
+        layoutHtml += "</div>";
         return layoutHtml;
-      
+
       default:
-        return `<div class="${className}" style="${style}">${component.content || ''}</div>`;
+        return `<div class="${className}" style="${style}">${
+          component.content || ""
+        }</div>`;
     }
   }
 
@@ -286,24 +295,34 @@ class PDFExportService {
     if (style.fontSize) styles.push(`font-size: ${style.fontSize}px`);
     if (style.fontFamily) styles.push(`font-family: ${style.fontFamily}`);
     if (style.color) styles.push(`color: ${style.color}`);
-    if (style.backgroundColor) styles.push(`background-color: ${style.backgroundColor}`);
+    if (style.backgroundColor)
+      styles.push(`background-color: ${style.backgroundColor}`);
     if (style.textAlign) styles.push(`text-align: ${style.textAlign}`);
     if (style.lineHeight) styles.push(`line-height: ${style.lineHeight}`);
     if (style.fontWeight) styles.push(`font-weight: ${style.fontWeight}`);
     if (style.fontStyle) styles.push(`font-style: ${style.fontStyle}`);
-    if (style.textDecoration) styles.push(`text-decoration: ${style.textDecoration}`);
+    if (style.textDecoration)
+      styles.push(`text-decoration: ${style.textDecoration}`);
 
     // 处理边距和内边距
     if (style.margin) {
       const m = style.margin;
-      styles.push(`margin: ${m.top || 0}px ${m.right || 0}px ${m.bottom || 0}px ${m.left || 0}px`);
+      styles.push(
+        `margin: ${m.top || 0}px ${m.right || 0}px ${m.bottom || 0}px ${
+          m.left || 0
+        }px`
+      );
     }
     if (style.padding) {
       const p = style.padding;
-      styles.push(`padding: ${p.top || 0}px ${p.right || 0}px ${p.bottom || 0}px ${p.left || 0}px`);
+      styles.push(
+        `padding: ${p.top || 0}px ${p.right || 0}px ${p.bottom || 0}px ${
+          p.left || 0
+        }px`
+      );
     }
 
-    return styles.join('; ');
+    return styles.join("; ");
   }
 
   /**
@@ -312,13 +331,13 @@ class PDFExportService {
    * @returns {string} 转义后的文本
    */
   static escapeHtml(text) {
-    if (typeof text !== 'string') return '';
+    if (typeof text !== "string") return "";
     return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 }
 

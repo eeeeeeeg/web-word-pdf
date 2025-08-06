@@ -169,7 +169,6 @@ import {
 import {
   PDFExportManager,
   ImageExportManager,
-  WordExportManager,
   PrintManager,
 } from "../utils/exportManager.js";
 import {
@@ -184,6 +183,8 @@ import PropertyPanel from "./PropertyPanel.vue";
 import GlobalConfig from "./GlobalConfig.vue";
 import PaginationWarnings from "./PaginationWarnings.vue";
 import ShareDialog from "./ShareDialog.vue";
+
+import { exportPDF, exportWord } from "@/apis/dowload/index.js";
 
 export default {
   name: "PageEditor",
@@ -794,10 +795,8 @@ export default {
     async exportAsWord() {
       this.showExportMenu = false;
       try {
-        await WordExportManager.exportToWord(this.pageSchema, {
-          filename: `页面设计_${new Date().toLocaleDateString()}.docx`,
-        });
-
+        const htmlContent = this.generatePlaywrightHTML();
+        exportWord(htmlContent);
         alert("Word 文档导出成功！");
       } catch (error) {
         alert("Word 导出失败: " + error.message);
@@ -808,10 +807,12 @@ export default {
       this.showExportMenu = false;
       try {
         const htmlContent = this.generatePlaywrightHTML();
-        this.downloadHTML(
-          htmlContent,
-          `页面设计_${new Date().toLocaleDateString()}.html`
-        );
+        console.log(" htmlContent -------------------- ", htmlContent);
+        exportPDF(htmlContent);
+        // this.downloadHTML(
+        //   htmlContent,
+        //   `页面设计_${new Date().toLocaleDateString()}.html`
+        // );
         alert("HTML 导出成功！");
       } catch (error) {
         alert("HTML 导出失败: " + error.message);
@@ -1307,36 +1308,43 @@ export default {
     },
 
     generatePageHTML(page, pageIndex, config) {
+      config;
       const pageClass = `page page-${pageIndex + 1}`;
+      // // 生成页眉
+      // const headerHTML = config.header.enabled
+      //   ? `<div class="page-header">${this.formatFooterContent(
+      //       config.header.content,
+      //       pageIndex + 1
+      //     )}</div>`
+      //   : "";
 
-      // 生成页眉
-      const headerHTML = config.header.enabled
-        ? `<div class="page-header">${this.formatFooterContent(
-            config.header.content,
-            pageIndex + 1
-          )}</div>`
-        : "";
-
-      // 生成页脚
-      const footerHTML = config.footer.enabled
-        ? `<div class="page-footer">${this.formatFooterContent(
-            config.footer.content,
-            pageIndex + 1
-          )}</div>`
-        : "";
+      // // 生成页脚
+      // const footerHTML = config.footer.enabled
+      //   ? `<div class="page-footer">${this.formatFooterContent(
+      //       config.footer.content,
+      //       pageIndex + 1
+      //     )}</div>`
+      //   : "";
 
       // 生成页面内容
       const contentHTML = page.components
         .map((component) => this.generateComponentHTML(component))
         .join("\n");
 
+      // return `
+      //   <div class="${pageClass}">
+      //     ${headerHTML}
+      //     <div class="page-content">
+      //       ${contentHTML}
+      //     </div>
+      //     ${footerHTML}
+      //   </div>
+      // `;
       return `
         <div class="${pageClass}">
-          ${headerHTML}
           <div class="page-content">
             ${contentHTML}
           </div>
-          ${footerHTML}
         </div>
       `;
     },
