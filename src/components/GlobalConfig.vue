@@ -25,6 +25,14 @@
             </select>
           </div>
 
+          <div class="form-group">
+            <label>页面方向:</label>
+            <select v-model="localConfig.pageSize.orientation">
+              <option value="portrait">纵向 (Portrait)</option>
+              <option value="landscape">横向 (Landscape)</option>
+            </select>
+          </div>
+
           <div class="form-row" v-if="localConfig.pageSize.preset === 'Custom'">
             <div class="form-group">
               <label>宽度:</label>
@@ -268,16 +276,39 @@ export default {
   methods: {
     handlePresetChange() {
       const presets = {
-        A4: { width: 210, height: 297, unit: "mm" },
-        A3: { width: 297, height: 420, unit: "mm" },
-        Letter: { width: 216, height: 279, unit: "mm" },
-        PPT_16_9: { width: 254, height: 143, unit: "mm" },
-        PPT_4_3: { width: 254, height: 190, unit: "mm" },
+        A4: { width: 210, height: 297, unit: "mm", orientation: "portrait" },
+        A3: { width: 297, height: 420, unit: "mm", orientation: "portrait" },
+        Letter: {
+          width: 216,
+          height: 279,
+          unit: "mm",
+          orientation: "portrait",
+        },
+        PPT_16_9: {
+          width: 254,
+          height: 143,
+          unit: "mm",
+          orientation: "landscape",
+        },
+        PPT_4_3: {
+          width: 254,
+          height: 190,
+          unit: "mm",
+          orientation: "landscape",
+        },
       };
 
       const preset = presets[this.localConfig.pageSize.preset];
       if (preset) {
+        // 保留当前的方向设置，除非是PPT格式（有默认方向）
+        const currentOrientation = this.localConfig.pageSize.orientation;
         Object.assign(this.localConfig.pageSize, preset);
+
+        // 对于PPT格式，使用预设的方向；对于其他格式，保留用户选择
+        if (!this.localConfig.pageSize.preset.startsWith("PPT_")) {
+          this.localConfig.pageSize.orientation =
+            currentOrientation || preset.orientation;
+        }
       }
     },
 

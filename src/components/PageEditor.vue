@@ -756,14 +756,18 @@ export default {
           throw new Error("找不到页面元素");
         }
 
+        const pageConfig = this.pageSchema.pageConfig;
         await PDFExportManager.exportToPDF(canvasElement, {
           filename: `页面设计_${new Date().toLocaleDateString()}.pdf`,
-          format: this.pageSchema.pageConfig.pageSize.preset.toLowerCase(),
-          orientation:
-            this.pageSchema.pageConfig.pageSize.width >
-            this.pageSchema.pageConfig.pageSize.height
-              ? "landscape"
-              : "portrait",
+          format: pageConfig.pageSize.preset.toLowerCase(),
+          orientation: pageConfig.pageSize.orientation || "portrait",
+          margin: Math.max(
+            pageConfig.margins.top,
+            pageConfig.margins.bottom,
+            pageConfig.margins.left,
+            pageConfig.margins.right
+          ),
+          quality: 1,
         });
 
         alert("PDF 导出成功！");
@@ -808,7 +812,30 @@ export default {
       try {
         const htmlContent = this.generatePlaywrightHTML();
         console.log(" htmlContent -------------------- ", htmlContent);
-        exportPDF(htmlContent);
+
+        // 从页面配置中获取参数
+        const pageConfig = this.pageSchema.pageConfig;
+        const margins = pageConfig.margins;
+
+        // 由于页眉页脚已经集成到主HTML中，使用原始边距
+        const exportOptions = {
+          displayHeaderFooter: false, // 不使用单独的页眉页脚模板
+          headerTemplate: "",
+          footerTemplate: "",
+          format: pageConfig.pageSize.preset || "A4",
+          orientation: pageConfig.pageSize.orientation || "portrait",
+          margin: {
+            top: `${margins.top}mm`,
+            bottom: `${margins.bottom}mm`,
+            left: `${margins.left}mm`,
+            right: `${margins.right}mm`,
+          },
+          printBackground: true,
+          scale: 1,
+        };
+
+        exportPDF(htmlContent, exportOptions);
+        // 可选：同时导出HTML文件用于调试
         // this.downloadHTML(
         //   htmlContent,
         //   `页面设计_${new Date().toLocaleDateString()}.html`
@@ -1139,11 +1166,141 @@ export default {
 </html>`;
     },
 
+    // 生成页眉模板
+    generateHeaderTemplate() {
+      const headerConfig = this.pageSchema.pageConfig.header;
+      if (
+        !headerConfig.enabled ||
+        !headerConfig.components ||
+        headerConfig.components.length === 0
+      ) {
+        return "";
+      }
+
+      // 处理占位符替换，但保留Playwright特殊占位符
+      const processedComponents = headerConfig.components.map((component) => {
+        const processedComponent = JSON.parse(JSON.stringify(component));
+        this.replacePlaywrightVariables(processedComponent);
+        return processedComponent;
+      });
+
+      const headerHTML = processedComponents
+        .map((component) => this.generateComponentHTML(component, true))
+        .join("");
+
+      const headerHeight = this.pageSchema.pageConfig.header.height || 15; // mm
+
+      return `
+        <div style="
+          width: 100%;
+          height: ${headerHeight}mm;
+          padding: 2px 10px;
+          margin: 0;
+          -webkit-print-color-adjust: exact;
+          box-sizing: border-box;
+          display: flex;
+          align-items: center;
+          overflow: hidden;
+        ">
+          ${headerHTML}
+        </div>
+      `;
+    },
+
+    // 生成页脚模板
+    generateFooterTemplate() {
+      const footerConfig = this.pageSchema.pageConfig.footer;
+      if (
+        !footerConfig.enabled ||
+        !footerConfig.components ||
+        footerConfig.components.length === 0
+      ) {
+        return "";
+      }
+
+      // 处理占位符替换，但保留Playwright特殊占位符
+      const processedComponents = footerConfig.components.map((component) => {
+        const processedComponent = JSON.parse(JSON.stringify(component));
+        this.replacePlaywrightVariables(processedComponent);
+        return processedComponent;
+      });
+
+      const footerHTML = processedComponents
+        .map((component) => this.generateComponentHTML(component, true))
+        .join("");
+
+      const footerHeight = this.pageSchema.pageConfig.footer.height || 15; // mm
+
+      return `
+        <div style="
+          width: 100%;
+          height: ${footerHeight}mm;
+          padding: 2px 10px;
+          margin: 0;
+          -webkit-print-color-adjust: exact;
+          box-sizing: border-box;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          overflow: hidden;
+        ">
+          ${footerHTML}
+          <span style="font-size: 10px; font-family: Arial, sans-serif; color: #333;">第 <span class="pageNumber"></span> 页 / 共 <span class="totalPages"></span> 页</span>
+        </div>
+      `;
+    },
+
+    // 替换组件中的变量占位符
+    replaceVariablesInComponent(component, pageNumber, totalPages) {
+      const now = new Date();
+      const date = now.toLocaleDateString("zh-CN");
+      const time = now.toLocaleTimeString("zh-CN");
+
+      // 替换文本组件的内容
+      if (component.type === "text" && component.content) {
+        component.content = component.content
+          .replace(/\{pageNumber\}/g, pageNumber.toString())
+          .replace(/\{totalPages\}/g, totalPages.toString())
+          .replace(/\{date\}/g, date)
+          .replace(/\{time\}/g, time);
+      }
+
+      // 递归处理子组件
+      if (component.children && Array.isArray(component.children)) {
+        component.children.forEach((child) => {
+          this.replaceVariablesInComponent(child, pageNumber, totalPages);
+        });
+      }
+    },
+
+    // 替换Playwright页眉页脚中的变量占位符
+    replacePlaywrightVariables(component) {
+      const now = new Date();
+      const date = now.toLocaleDateString("zh-CN");
+      const time = now.toLocaleTimeString("zh-CN");
+
+      // 替换文本组件的内容，使用Playwright特殊CSS类
+      if (component.type === "text" && component.content) {
+        component.content = component.content
+          .replace(/\{pageNumber\}/g, '<span class="pageNumber"></span>')
+          .replace(/\{totalPages\}/g, '<span class="totalPages"></span>')
+          .replace(/\{date\}/g, `<span class="date">${date}</span>`)
+          .replace(/\{time\}/g, time);
+      }
+
+      // 递归处理子组件
+      if (component.children && Array.isArray(component.children)) {
+        component.children.forEach((child) => {
+          this.replacePlaywrightVariables(child);
+        });
+      }
+    },
+
     generatePageStyles(config) {
       const size = config.pageSize;
       let width, height;
 
-      // 转换尺寸到像素
+      // 转换尺寸到像素 - 与Canvas.vue保持一致
       if (size.unit === "mm") {
         width = size.width * 3.78; // 1mm ≈ 3.78px at 96dpi
         height = size.height * 3.78;
@@ -1154,6 +1311,12 @@ export default {
         width = size.width;
         height = size.height;
       }
+
+      // 计算页面内边距 - 与Canvas.vue的pageStyle保持一致
+      const paddingTop = config.margins.top * 3.78;
+      const paddingRight = config.margins.right * 3.78;
+      const paddingBottom = config.margins.bottom * 3.78;
+      const paddingLeft = config.margins.left * 3.78;
 
       return `
         * {
@@ -1182,31 +1345,29 @@ export default {
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
             border-radius: 6px;
             position: relative;
-            padding: ${config.margins.top * 3.78}px ${
-        config.margins.right * 3.78
-      }px ${config.margins.bottom * 3.78}px ${config.margins.left * 3.78}px;
-            page-break-after: always;
+            padding: ${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px;
         }
 
-        .page:last-child {
-            page-break-after: auto;
-        }
+ 
 
         .page-header {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            height: ${config.header.height * 3.78}px;
+            height: ${
+              config.header.enabled ? config.header.height * 3.78 : 0
+            }px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: ${config.header.style.fontSize}px;
-            font-family: ${config.header.style.fontFamily};
-            color: ${config.header.style.color};
-            text-align: ${config.header.style.textAlign};
+            justify-content: space-between;
             border-bottom: 1px solid #f0f0f0;
             background: rgba(248, 248, 248, 0.8);
+            width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+            padding: 8px 16px;
+            z-index: 10;
         }
 
         .page-footer {
@@ -1214,19 +1375,23 @@ export default {
             bottom: 0;
             left: 0;
             right: 0;
-            height: ${config.footer.height * 3.78}px;
+            height: ${
+              config.footer.enabled ? config.footer.height * 3.78 : 0
+            }px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: ${config.footer.style.fontSize}px;
-            font-family: ${config.footer.style.fontFamily};
-            color: ${config.footer.style.color};
-            text-align: ${config.footer.style.textAlign};
+            justify-content: space-between;
             border-top: 1px solid #f0f0f0;
             background: rgba(248, 248, 248, 0.8);
+            width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+            padding: 8px 16px;
+            z-index: 10;
         }
 
         .page-content {
+            position: relative;
             height: 100%;
             ${
               config.header.enabled
@@ -1241,17 +1406,23 @@ export default {
             display: flex;
             flex-direction: column;
             gap: 8px;
+            min-height: calc(100% - ${
+              (config.header.enabled ? config.header.height * 3.78 : 0) +
+              (config.footer.enabled ? config.footer.height * 3.78 : 0)
+            }px);
         }
 
         .layout-component {
             display: flex;
             align-items: stretch;
             min-height: 60px;
+            gap: 8px;
         }
 
         .layout-column {
             padding: 8px;
             position: relative;
+            box-sizing: border-box;
         }
 
         .text-component {
@@ -1259,6 +1430,7 @@ export default {
             width: 100%;
             box-sizing: border-box;
             min-height: 24px;
+            padding: 8px;
         }
 
         .text-content {
@@ -1267,13 +1439,43 @@ export default {
             word-wrap: break-word;
             word-break: break-word;
             overflow-wrap: break-word;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: inherit;
+            background: transparent;
+            margin: 0;
+        }
+
+        /* 文本内容样式 - 与text-display.css保持一致 */
+        .text-content p {
+            margin: 0 0 6px 0;
+        }
+
+        .text-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .text-content h1, .text-content h2, .text-content h3,
+        .text-content h4, .text-content h5, .text-content h6 {
+            margin: 8px 0;
+            color: inherit;
+        }
+
+        .text-content ul, .text-content ol {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        .text-content li {
+            margin: 2px 0;
+            line-height: 1.5;
         }
 
         .image-component {
             border-radius: 4px;
             width: 100%;
             box-sizing: border-box;
-            text-align: center;
         }
 
         .image-component img {
@@ -1297,175 +1499,405 @@ export default {
                 box-shadow: none;
                 border-radius: 0;
                 margin: 0;
-                page-break-after: always;
             }
 
             .page:last-child {
-                page-break-after: auto;
             }
         }
       `;
     },
 
     generatePageHTML(page, pageIndex, config) {
-      config;
       const pageClass = `page page-${pageIndex + 1}`;
-      // // 生成页眉
-      // const headerHTML = config.header.enabled
-      //   ? `<div class="page-header">${this.formatFooterContent(
-      //       config.header.content,
-      //       pageIndex + 1
-      //     )}</div>`
-      //   : "";
 
-      // // 生成页脚
-      // const footerHTML = config.footer.enabled
-      //   ? `<div class="page-footer">${this.formatFooterContent(
-      //       config.footer.content,
-      //       pageIndex + 1
-      //     )}</div>`
-      //   : "";
+      // 生成页眉 - 直接集成到主HTML中
+      let headerHTML = "";
+      if (
+        config.header.enabled &&
+        config.header.components &&
+        config.header.components.length > 0
+      ) {
+        // 处理页眉组件，替换变量
+        const processedHeaderComponents = config.header.components.map(
+          (component) => {
+            const processedComponent = JSON.parse(JSON.stringify(component));
+            this.replaceVariablesInComponent(
+              processedComponent,
+              pageIndex + 1,
+              this.pageSchema.pages.length
+            );
+            return processedComponent;
+          }
+        );
+
+        const headerComponentsHTML = processedHeaderComponents
+          .map((component) => this.generateComponentHTML(component, true))
+          .join("\n");
+
+        headerHTML = `
+          <div class="page-header" style="
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: ${config.header.height * 3.78}px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #f0f0f0;
+            background: rgba(248, 248, 248, 0.8);
+            width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+            padding: 8px 16px;
+            z-index: 10;
+          ">
+            ${headerComponentsHTML}
+          </div>
+        `;
+      }
+
+      // 生成页脚 - 直接集成到主HTML中
+      let footerHTML = "";
+      if (
+        config.footer.enabled &&
+        config.footer.components &&
+        config.footer.components.length > 0
+      ) {
+        // 处理页脚组件，替换变量
+        const processedFooterComponents = config.footer.components.map(
+          (component) => {
+            const processedComponent = JSON.parse(JSON.stringify(component));
+            this.replaceVariablesInComponent(
+              processedComponent,
+              pageIndex + 1,
+              this.pageSchema.pages.length
+            );
+            return processedComponent;
+          }
+        );
+
+        const footerComponentsHTML = processedFooterComponents
+          .map((component) => this.generateComponentHTML(component, true))
+          .join("\n");
+
+        footerHTML = `
+          <div class="page-footer" style="
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: ${config.footer.height * 3.78}px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid #f0f0f0;
+            background: rgba(248, 248, 248, 0.8);
+            width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+            padding: 8px 16px;
+            z-index: 10;
+          ">
+            ${footerComponentsHTML}
+            <div style="font-size: 10px; font-family: Arial, sans-serif; color: #333; margin-left: auto;">
+              第 ${pageIndex + 1} 页 / 共 ${this.pageSchema.pages.length} 页
+            </div>
+          </div>
+        `;
+      }
 
       // 生成页面内容
       const contentHTML = page.components
         .map((component) => this.generateComponentHTML(component))
         .join("\n");
 
-      // return `
-      //   <div class="${pageClass}">
-      //     ${headerHTML}
-      //     <div class="page-content">
-      //       ${contentHTML}
-      //     </div>
-      //     ${footerHTML}
-      //   </div>
-      // `;
       return `
         <div class="${pageClass}">
+          ${headerHTML}
           <div class="page-content">
             ${contentHTML}
           </div>
+          ${footerHTML}
         </div>
       `;
     },
 
-    generateComponentHTML(component) {
+    generateComponentHTML(component, isHeaderFooter = false) {
       switch (component.type) {
         case "layout":
-          return this.generateLayoutHTML(component);
+          return this.generateLayoutHTML(component, isHeaderFooter);
         case "text":
-          return this.generateTextHTML(component);
+          return this.generateTextHTML(component, isHeaderFooter);
         case "image":
-          return this.generateImageHTML(component);
+          return this.generateImageHTML(component, isHeaderFooter);
         default:
           return "";
       }
     },
 
-    generateLayoutHTML(component) {
+    generateLayoutHTML(component, isHeaderFooter = false) {
       const style = component.style;
-      const layoutStyle = `
-        margin: ${style.margin.top}px ${style.margin.right}px ${
-        style.margin.bottom
-      }px ${style.margin.left}px;
-        padding: ${style.padding.top}px ${style.padding.right}px ${
-        style.padding.bottom
-      }px ${style.padding.left}px;
-        justify-content: ${component.alignment || "flex-start"};
-      `;
 
-      const columnsHTML = component.columns
-        .map((column, index) => {
-          const columnStyle = `flex: 0 0 ${column.width}%; padding: 8px;`;
-          const children = component.children
-            ? component.children.filter((child) => child.columnIndex === index)
-            : [];
-          const childrenHTML = children
-            .map((child) => this.generateComponentHTML(child))
-            .join("\n");
+      if (isHeaderFooter) {
+        // 为页眉页脚生成内联样式的布局
+        const layoutStyle = `
+          margin: ${style.margin.top}px ${style.margin.right}px ${
+          style.margin.bottom
+        }px ${style.margin.left}px;
+          padding: ${style.padding.top}px ${style.padding.right}px ${
+          style.padding.bottom
+        }px ${style.padding.left}px;
+          display: flex;
+          justify-content: ${component.alignment || "flex-start"};
+          align-items: center;
+          width: 100%;
+          height: 100%;
+          box-sizing: border-box;
+          flex: 1;
+        `;
 
-          return `<div class="layout-column" style="${columnStyle}">${childrenHTML}</div>`;
-        })
-        .join("\n");
+        const columnsHTML = component.columns
+          .map((column, index) => {
+            const columnStyle = `
+              flex: 0 0 ${column.width}%;
+              padding: 2px 4px;
+              box-sizing: border-box;
+              display: flex;
+              align-items: center;
+              height: 100%;
+            `;
+            const children = component.children
+              ? component.children.filter(
+                  (child) => child.columnIndex === index
+                )
+              : [];
+            const childrenHTML = children
+              .map((child) => this.generateComponentHTML(child, true))
+              .join("");
 
-      return `<div class="layout-component" style="${layoutStyle}">${columnsHTML}</div>`;
-    },
+            return `<div style="${columnStyle}">${childrenHTML}</div>`;
+          })
+          .join("");
 
-    generateTextHTML(component) {
-      const style = component.style;
-      const textStyle = `
-        margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
-        padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
-      `;
+        return `<div style="${layoutStyle}">${columnsHTML}</div>`;
+      } else {
+        // 普通页面内容的布局 - 与CanvasComponent.vue的layoutStyle保持一致
+        const layoutStyle = `
+          margin: ${style.margin.top}px ${style.margin.right}px ${
+          style.margin.bottom
+        }px ${style.margin.left}px;
+          padding: ${style.padding.top}px ${style.padding.right}px ${
+          style.padding.bottom
+        }px ${style.padding.left}px;
+          display: flex;
+          align-items: stretch;
+          justify-content: ${component.alignment || "flex-start"};
+          min-height: ${style.minHeight || 60}px;
+          gap: 8px;
+        `;
 
-      const contentStyle = `
-        font-size: ${style.fontSize}px;
-        font-family: ${style.fontFamily};
-        color: ${style.color};
-        line-height: ${style.lineHeight};
-        text-align: ${style.textAlign};
-        font-weight: ${style.fontWeight};
-        font-style: ${style.fontStyle};
-        text-decoration: ${style.textDecoration};
-      `;
+        const columnsHTML = component.columns
+          .map((column, index) => {
+            const columnStyle = `
+              flex: 0 0 ${column.width}%;
+              padding: 8px;
+              position: relative;
+              box-sizing: border-box;
+            `;
+            const children = component.children
+              ? component.children.filter(
+                  (child) => child.columnIndex === index
+                )
+              : [];
+            const childrenHTML = children
+              .map((child) => this.generateComponentHTML(child))
+              .join("\n");
 
-      return `
-        <div class="text-component" style="${textStyle}">
-          <div class="text-content" style="${contentStyle}">
-            ${component.content || ""}
-          </div>
-        </div>
-      `;
-    },
+            return `<div class="layout-column" style="${columnStyle}">${childrenHTML}</div>`;
+          })
+          .join("\n");
 
-    generateImageHTML(component) {
-      const style = component.style;
-      const alignment = component.alignment || "left";
-
-      // 根据对齐方式设置 flexbox 对齐
-      let justifyContent = "flex-start";
-      if (alignment === "left") {
-        justifyContent = "flex-start";
-      } else if (alignment === "right") {
-        justifyContent = "flex-end";
-      } else if (alignment === "center") {
-        justifyContent = "center";
+        return `<div class="layout-component" style="${layoutStyle}">${columnsHTML}</div>`;
       }
+    },
 
-      const containerStyle = `
-        margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
-        padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
-        display: flex;
-        justify-content: ${justifyContent};
-        align-items: flex-start;
-        width: 100%;
-      `;
+    generateTextHTML(component, isHeaderFooter = false) {
+      const style = component.style;
 
-      const imageStyle = `
-        width: ${style.width}px;
-        ${component.keepAspectRatio ? "" : `height: ${style.height}px;`}
-        object-fit: ${style.objectFit};
-        border-radius: ${style.borderRadius}px;
-        border: ${style.border};
-      `;
+      if (isHeaderFooter) {
+        // 为页眉页脚生成完全内联的样式
+        const inlineStyle = `
+          margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
+          padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
+          font-size: ${style.fontSize}px;
+          font-family: ${style.fontFamily};
+          color: ${style.color};
+          line-height: ${style.lineHeight};
+          text-align: ${style.textAlign};
+          font-weight: ${style.fontWeight};
+          font-style: ${style.fontStyle};
+          text-decoration: ${style.textDecoration};
+          display: flex;
+          align-items: center;
+          height: 100%;
+          box-sizing: border-box;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        `;
 
-      if (!component.src) {
+        return `<div style="${inlineStyle}">${component.content || ""}</div>`;
+      } else {
+        // 普通页面内容的样式 - 与CanvasComponent.vue的textStyle保持一致
+        const textStyle = `
+          margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
+          padding: 8px;
+          min-height: 24px;
+        `;
+
+        const contentStyle = `
+          font-size: ${style.fontSize}px;
+          font-family: ${style.fontFamily};
+          color: ${style.color};
+          line-height: ${style.lineHeight};
+          text-align: ${style.textAlign};
+          font-weight: ${style.fontWeight};
+          font-style: ${style.fontStyle};
+          text-decoration: ${style.textDecoration};
+          width: 100%;
+          min-height: inherit;
+          word-wrap: break-word;
+          word-break: break-word;
+          overflow-wrap: break-word;
+          background: transparent;
+          margin: 0;
+          box-sizing: border-box;
+        `;
+
         return `
-          <div class="image-component" style="${containerStyle}">
-            <div style="border: 2px dashed #d0d0d0; padding: 20px; text-align: center; color: #999; flex: 1;">
-              图片未加载
+          <div class="text-component" style="${textStyle}">
+            <div class="text-content" style="${contentStyle}">
+              ${component.content || ""}
             </div>
           </div>
         `;
       }
+    },
 
-      return `
-        <div class="image-component" style="${containerStyle}">
-          <img src="${component.src}" alt="${
-        component.alt || ""
-      }" style="${imageStyle}" />
-        </div>
-      `;
+    generateImageHTML(component, isHeaderFooter = false) {
+      const style = component.style;
+      const alignment = component.alignment || "left";
+
+      if (isHeaderFooter) {
+        // 页眉页脚中的图片需要特殊处理
+        const headerFooterHeight = isHeaderFooter
+          ? (this.pageSchema.pageConfig.header.enabled
+              ? this.pageSchema.pageConfig.header.height
+              : this.pageSchema.pageConfig.footer.height) || 15
+          : 15;
+
+        // 限制图片最大高度为页眉页脚高度的80%
+        const maxHeight = Math.floor(headerFooterHeight * 3.78 * 0.8);
+        const maxWidth = Math.min(style.width, 100); // 限制最大宽度为100px
+
+        const containerStyle = `
+          margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
+          padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
+          display: flex;
+          align-items: center;
+          height: 100%;
+          box-sizing: border-box;
+        `;
+
+        const imageStyle = `
+          max-width: ${maxWidth}px;
+          max-height: ${maxHeight}px;
+          width: auto;
+          height: auto;
+          object-fit: contain;
+          border-radius: ${style.borderRadius}px;
+          border: ${style.border};
+          display: block;
+        `;
+
+        if (!component.src) {
+          return `<div style="${containerStyle}"><span style="color: #999; font-size: 10px;">图片未加载</span></div>`;
+        }
+
+        return `<div style="${containerStyle}"><img src="${
+          component.src
+        }" alt="${component.alt || ""}" style="${imageStyle}" /></div>`;
+      } else {
+        // 普通页面内容的图片处理 - 与CanvasComponent.vue的imageContainerStyle保持一致
+        // 根据对齐方式设置 flexbox 对齐
+        let justifyContent = "flex-start";
+        if (alignment === "left") {
+          justifyContent = "flex-start";
+        } else if (alignment === "right") {
+          justifyContent = "flex-end";
+        } else if (alignment === "center") {
+          justifyContent = "center";
+        }
+
+        const containerStyle = `
+          margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
+          padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
+          display: flex;
+          justify-content: ${justifyContent};
+          align-items: flex-start;
+          width: 100%;
+          border-radius: 4px;
+          box-sizing: border-box;
+        `;
+
+        // 与CanvasComponent.vue的imageStyle保持一致
+        let imageStyle = `
+          max-width: 100%;
+          object-fit: ${style.objectFit};
+          border-radius: ${style.borderRadius}px;
+          border: ${style.border};
+          display: block;
+        `;
+
+        // 检查是否使用固定高度模式
+        const useFixedHeight = component.fixedHeight;
+        if (useFixedHeight) {
+          imageStyle += `
+            height: ${style.height}px;
+            width: auto;
+            max-height: ${style.height}px;
+          `;
+        } else {
+          imageStyle += `
+            width: ${style.width}px;
+            ${
+              component.keepAspectRatio
+                ? "height: auto;"
+                : `height: ${style.height}px;`
+            }
+          `;
+        }
+
+        if (!component.src) {
+          return `
+            <div class="image-component" style="${containerStyle}">
+              <div style="border: 2px dashed #d0d0d0; padding: 20px; text-align: center; color: #999; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px;">
+                <div style="font-size: 32px; margin-bottom: 8px; opacity: 0.6;">🖼️</div>
+                <div style="font-size: 14px; color: #666;">图片未加载</div>
+              </div>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="image-component" style="${containerStyle}">
+            <img src="${component.src}" alt="${
+          component.alt || ""
+        }" style="${imageStyle}" />
+          </div>
+        `;
+      }
     },
 
     downloadHTML(content, filename) {

@@ -1,38 +1,144 @@
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs-extra');
-const { v4: uuidv4 } = require('uuid');
+const express = require("express");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs-extra");
+const { v4: uuidv4 } = require("uuid");
 
 // 导入导出服务
-const PDFExportService = require('../services/PDFExportService');
-const WordExportService = require('../services/WordExportService');
-const PPTExportService = require('../services/PPTExportService');
+const PDFExportService = require("../services/PDFExportService");
+const PandocWordExportService = require("../services/PandocWordExportService");
+const PPTExportService = require("../services/PPTExportService");
 
 const router = express.Router();
 
+/**
+ * 将Schema转换为HTML
+ */
+function convertSchemaToHTML(schema) {
+  let html = "<html><head><style>";
+
+  // 添加一些基础样式
+  html += `
+    body {
+      font-family: 'Microsoft YaHei', Arial, sans-serif;
+      line-height: 1.6;
+      font-size: 12pt;
+    }
+    .page-break { page-break-before: always; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .highlight { background-color: yellow; }
+    .code {
+      font-family: 'Courier New', monospace;
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+    }
+    img {
+      width: 64px !important;
+      height: 64px !important;
+      object-fit: contain;
+      display: block;
+      margin: 0.5em auto;
+    }
+  `;
+
+  html += "</style></head><body>";
+
+  if (schema.pages) {
+    schema.pages.forEach((page, pageIndex) => {
+      if (pageIndex > 0) {
+        html += '<div class="page-break"></div>';
+      }
+
+      if (page.components && page.components.length > 0) {
+        page.components.forEach((component) => {
+          html += convertComponentToHTML(component);
+        });
+      }
+    });
+  }
+
+  html += "</body></html>";
+  return html;
+}
+
+/**
+ * 将组件转换为HTML
+ */
+function convertComponentToHTML(component) {
+  if (!component || !component.type) {
+    return "";
+  }
+
+  switch (component.type) {
+    case "text":
+      return `<p>${component.content || ""}</p>`;
+
+    case "image":
+      if (component.src) {
+        return `<img src="${component.src}" alt="${
+          component.alt || "图片"
+        }" />`;
+      } else {
+        return "<p><em>图片未加载</em></p>";
+      }
+
+    case "layout":
+      let layoutHTML = "<div>";
+      if (component.children && component.children.length > 0) {
+        component.children.forEach((child) => {
+          layoutHTML += convertComponentToHTML(child);
+        });
+      }
+      layoutHTML += "</div>";
+      return layoutHTML;
+
+    default:
+      return `<p>${component.content || ""}</p>`;
+  }
+}
+
+/**
+ * 解析布尔值，处理字符串形式的布尔值
+ * @param {any} value - 要解析的值
+ * @param {boolean} defaultValue - 默认值
+ * @returns {boolean} 解析后的布尔值
+ */
+function parseBoolean(value, defaultValue = false) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    return value.toLowerCase() === "true";
+  }
+  return defaultValue;
+}
+
 // 配置文件上传
 const upload = multer({
-  dest: path.join(__dirname, '../temp/uploads'),
+  dest: path.join(__dirname, "../temp/uploads"),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB
-    files: 10
+    files: 10,
   },
   fileFilter: (req, file, cb) => {
     // 允许的文件类型
-    const allowedTypes = ['text/html', 'application/json', 'text/plain'];
-    if (allowedTypes.includes(file.mimetype) || file.mimetype.startsWith('image/')) {
+    const allowedTypes = ["text/html", "application/json", "text/plain"];
+    if (
+      allowedTypes.includes(file.mimetype) ||
+      file.mimetype.startsWith("image/")
+    ) {
       cb(null, true);
     } else {
       cb(new Error(`不支持的文件类型: ${file.mimetype}`));
     }
-  }
+  },
 });
 
 /**
  * PDF导出接口
  */
-router.post('/pdf', upload.single('htmlFile'), async (req, res) => {
+router.post("/pdf", upload.single("htmlFile"), async (req, res) => {
   const taskId = uuidv4();
   console.log(`[${taskId}] 开始PDF导出任务`);
 
@@ -42,50 +148,58 @@ router.post('/pdf', upload.single('htmlFile'), async (req, res) => {
 
     // 如果上传了HTML文件，使用文件内容
     if (req.file) {
-      html = await fs.readFile(req.file.path, 'utf-8');
+      html = await fs.readFile(req.file.path, "utf-8");
       await fs.remove(req.file.path); // 清理临时文件
     }
 
     if (!html) {
       return res.status(400).json({
-        error: 'Missing HTML content',
-        message: '请提供HTML内容或上传HTML文件'
+        error: "Missing HTML content",
+        message: "请提供HTML内容或上传HTML文件",
       });
     }
 
     // 解析导出选项
     const exportOptions = {
-      format: options.format || 'A4',
-      orientation: options.orientation || 'portrait',
-      margin: options.margin || { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' },
-      printBackground: options.printBackground !== false,
-      displayHeaderFooter: options.displayHeaderFooter || false,
-      headerTemplate: options.headerTemplate || '',
-      footerTemplate: options.footerTemplate || '',
-      scale: options.scale || 1,
-      ...options
+      format: options.format || "A4",
+      orientation: options.orientation || "portrait",
+      margin: options.margin || {
+        top: "1cm",
+        right: "1cm",
+        bottom: "1cm",
+        left: "1cm",
+      },
+      printBackground: parseBoolean(options.printBackground, true),
+      displayHeaderFooter: parseBoolean(options.displayHeaderFooter, false),
+      headerTemplate: options.headerTemplate || "",
+      footerTemplate: options.footerTemplate || "",
+      scale: parseFloat(options.scale) || 1,
+      ...options,
     };
 
     console.log(`[${taskId}] 导出选项:`, exportOptions);
 
     // 执行PDF导出
-    const pdfBuffer = await PDFExportService.exportToPDF(html, exportOptions, taskId);
+    const pdfBuffer = await PDFExportService.exportToPDF(
+      html,
+      exportOptions,
+      taskId
+    );
 
     // 设置响应头
     const filename = options.filename || `document_${Date.now()}.pdf`;
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', pdfBuffer.length);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pdfBuffer.length);
 
     console.log(`[${taskId}] PDF导出成功，文件大小: ${pdfBuffer.length} bytes`);
     res.send(pdfBuffer);
-
   } catch (error) {
     console.error(`[${taskId}] PDF导出失败:`, error);
     res.status(500).json({
-      error: 'PDF Export Failed',
+      error: "PDF Export Failed",
       message: error.message,
-      taskId
+      taskId,
     });
   }
 });
@@ -93,7 +207,7 @@ router.post('/pdf', upload.single('htmlFile'), async (req, res) => {
 /**
  * Word导出接口
  */
-router.post('/word', upload.single('htmlFile'), async (req, res) => {
+router.post("/word", upload.single("htmlFile"), async (req, res) => {
   const taskId = uuidv4();
   console.log(`[${taskId}] 开始Word导出任务`);
 
@@ -103,24 +217,29 @@ router.post('/word', upload.single('htmlFile'), async (req, res) => {
 
     // 如果上传了HTML文件，使用文件内容
     if (req.file) {
-      html = await fs.readFile(req.file.path, 'utf-8');
+      html = await fs.readFile(req.file.path, "utf-8");
       await fs.remove(req.file.path);
     }
 
     if (!html && !schemaData) {
       return res.status(400).json({
-        error: 'Missing Content',
-        message: '请提供HTML内容或Schema数据'
+        error: "Missing Content",
+        message: "请提供HTML内容或Schema数据",
       });
     }
 
     // 解析导出选项
     const exportOptions = {
-      pageSize: options.pageSize || 'A4',
-      orientation: options.orientation || 'portrait',
-      margins: options.margins || { top: 720, right: 720, bottom: 720, left: 720 }, // 1英寸 = 720 twips
+      pageSize: options.pageSize || "A4",
+      orientation: options.orientation || "portrait",
+      margins: options.margins || {
+        top: 720,
+        right: 720,
+        bottom: 720,
+        left: 720,
+      }, // 1英寸 = 720 twips
       includeImages: options.includeImages !== false,
-      ...options
+      ...options,
     };
 
     console.log(`[${taskId}] Word导出选项:`, exportOptions);
@@ -129,27 +248,58 @@ router.post('/word', upload.single('htmlFile'), async (req, res) => {
     let wordBuffer;
     if (schemaData) {
       // 从Schema数据生成Word文档
-      wordBuffer = await WordExportService.exportFromSchema(JSON.parse(schemaData), exportOptions, taskId);
+      const pandocService = new PandocWordExportService();
+      const htmlContent = convertSchemaToHTML(JSON.parse(schemaData));
+      wordBuffer = await pandocService.exportFromHTML(
+        htmlContent,
+        exportOptions,
+        taskId
+      );
     } else {
       // 从HTML生成Word文档
-      wordBuffer = await WordExportService.exportFromHTML(html, exportOptions, taskId);
+      // 如果有Schema数据，尝试从中提取页面配置
+      let htmlExportOptions = exportOptions;
+      if (schemaData) {
+        try {
+          const schema = JSON.parse(schemaData);
+          if (schema.pageConfig) {
+            htmlExportOptions = {
+              ...exportOptions,
+              pageConfig: schema.pageConfig,
+            };
+          }
+        } catch (e) {
+          // 忽略Schema解析错误，使用默认配置
+        }
+      }
+
+      const pandocService = new PandocWordExportService();
+      wordBuffer = await pandocService.exportFromHTML(
+        html,
+        htmlExportOptions,
+        taskId
+      );
     }
 
     // 设置响应头
     const filename = options.filename || `document_${Date.now()}.docx`;
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', wordBuffer.length);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", wordBuffer.length);
 
-    console.log(`[${taskId}] Word导出成功，文件大小: ${wordBuffer.length} bytes`);
+    console.log(
+      `[${taskId}] Word导出成功，文件大小: ${wordBuffer.length} bytes`
+    );
     res.send(wordBuffer);
-
   } catch (error) {
     console.error(`[${taskId}] Word导出失败:`, error);
     res.status(500).json({
-      error: 'Word Export Failed',
+      error: "Word Export Failed",
       message: error.message,
-      taskId
+      taskId,
     });
   }
 });
@@ -157,7 +307,7 @@ router.post('/word', upload.single('htmlFile'), async (req, res) => {
 /**
  * PPT导出接口
  */
-router.post('/ppt', upload.single('htmlFile'), async (req, res) => {
+router.post("/ppt", upload.single("htmlFile"), async (req, res) => {
   const taskId = uuidv4();
   console.log(`[${taskId}] 开始PPT导出任务`);
 
@@ -166,40 +316,46 @@ router.post('/ppt', upload.single('htmlFile'), async (req, res) => {
 
     if (!schemaData) {
       return res.status(400).json({
-        error: 'Missing Schema Data',
-        message: '请提供Schema数据用于PPT导出'
+        error: "Missing Schema Data",
+        message: "请提供Schema数据用于PPT导出",
       });
     }
 
     // 解析导出选项
     const exportOptions = {
-      slideSize: options.slideSize || 'LAYOUT_16x9',
-      theme: options.theme || 'default',
+      slideSize: options.slideSize || "LAYOUT_16x9",
+      theme: options.theme || "default",
       includeImages: options.includeImages !== false,
       slidesPerPage: options.slidesPerPage || 1,
-      ...options
+      ...options,
     };
 
     console.log(`[${taskId}] PPT导出选项:`, exportOptions);
 
     // 执行PPT导出
-    const pptBuffer = await PPTExportService.exportFromSchema(JSON.parse(schemaData), exportOptions, taskId);
+    const pptBuffer = await PPTExportService.exportFromSchema(
+      JSON.parse(schemaData),
+      exportOptions,
+      taskId
+    );
 
     // 设置响应头
     const filename = options.filename || `presentation_${Date.now()}.pptx`;
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', pptBuffer.length);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", pptBuffer.length);
 
     console.log(`[${taskId}] PPT导出成功，文件大小: ${pptBuffer.length} bytes`);
     res.send(pptBuffer);
-
   } catch (error) {
     console.error(`[${taskId}] PPT导出失败:`, error);
     res.status(500).json({
-      error: 'PPT Export Failed',
+      error: "PPT Export Failed",
       message: error.message,
-      taskId
+      taskId,
     });
   }
 });
@@ -207,7 +363,7 @@ router.post('/ppt', upload.single('htmlFile'), async (req, res) => {
 /**
  * 批量导出接口
  */
-router.post('/batch', upload.single('dataFile'), async (req, res) => {
+router.post("/batch", upload.single("dataFile"), async (req, res) => {
   const taskId = uuidv4();
   console.log(`[${taskId}] 开始批量导出任务`);
 
@@ -216,15 +372,15 @@ router.post('/batch', upload.single('dataFile'), async (req, res) => {
 
     if (!formats || !Array.isArray(formats) || formats.length === 0) {
       return res.status(400).json({
-        error: 'Missing Formats',
-        message: '请指定要导出的格式数组'
+        error: "Missing Formats",
+        message: "请指定要导出的格式数组",
       });
     }
 
     if (!schemaData) {
       return res.status(400).json({
-        error: 'Missing Schema Data',
-        message: '请提供Schema数据'
+        error: "Missing Schema Data",
+        message: "请提供Schema数据",
       });
     }
 
@@ -238,16 +394,30 @@ router.post('/batch', upload.single('dataFile'), async (req, res) => {
         const formatOptions = options[format] || {};
 
         switch (format.toLowerCase()) {
-          case 'pdf':
-            buffer = await PDFExportService.exportFromSchema(schema, formatOptions, `${taskId}-pdf`);
+          case "pdf":
+            buffer = await PDFExportService.exportFromSchema(
+              schema,
+              formatOptions,
+              `${taskId}-pdf`
+            );
             break;
-          case 'word':
-          case 'docx':
-            buffer = await WordExportService.exportFromSchema(schema, formatOptions, `${taskId}-word`);
+          case "word":
+          case "docx":
+            const pandocService = new PandocWordExportService();
+            const htmlContent = convertSchemaToHTML(schema);
+            buffer = await pandocService.exportFromHTML(
+              htmlContent,
+              formatOptions,
+              `${taskId}-word`
+            );
             break;
-          case 'ppt':
-          case 'pptx':
-            buffer = await PPTExportService.exportFromSchema(schema, formatOptions, `${taskId}-ppt`);
+          case "ppt":
+          case "pptx":
+            buffer = await PPTExportService.exportFromSchema(
+              schema,
+              formatOptions,
+              `${taskId}-ppt`
+            );
             break;
           default:
             throw new Error(`不支持的导出格式: ${format}`);
@@ -256,12 +426,12 @@ router.post('/batch', upload.single('dataFile'), async (req, res) => {
         results[format] = {
           success: true,
           size: buffer.length,
-          data: buffer.toString('base64')
+          data: buffer.toString("base64"),
         };
       } catch (error) {
         results[format] = {
           success: false,
-          error: error.message
+          error: error.message,
         };
       }
     });
@@ -272,15 +442,14 @@ router.post('/batch', upload.single('dataFile'), async (req, res) => {
     res.json({
       taskId,
       timestamp: new Date().toISOString(),
-      results
+      results,
     });
-
   } catch (error) {
     console.error(`[${taskId}] 批量导出失败:`, error);
     res.status(500).json({
-      error: 'Batch Export Failed',
+      error: "Batch Export Failed",
       message: error.message,
-      taskId
+      taskId,
     });
   }
 });

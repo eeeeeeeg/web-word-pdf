@@ -57,7 +57,6 @@ class PDFExportService {
 
       // PDF生成选项
       const pdfOptions = {
-        format: options.format || "A4",
         landscape: options.orientation === "landscape",
         margin: options.margin || {
           top: "1cm",
@@ -65,13 +64,23 @@ class PDFExportService {
           bottom: "1cm",
           left: "1cm",
         },
-        printBackground: options.printBackground !== false,
-        displayHeaderFooter: options.displayHeaderFooter || false,
+        printBackground: this.parseBoolean(options.printBackground, true),
+        displayHeaderFooter: this.parseBoolean(
+          options.displayHeaderFooter,
+          false
+        ),
         headerTemplate: options.headerTemplate || "",
         footerTemplate: options.footerTemplate || "",
-        scale: options.scale || 1,
-        preferCSSPageSize: options.preferCSSPageSize || false,
+        scale: parseFloat(options.scale) || 1,
+        preferCSSPageSize: this.parseBoolean(options.preferCSSPageSize, false),
       };
+
+      // 处理页面格式 - 支持标准格式和自定义尺寸
+      const formatResult = this.handlePageFormat(
+        options.format || "A4",
+        options
+      );
+      Object.assign(pdfOptions, formatResult);
 
       // 生成PDF
       const pdfBuffer = await page.pdf(pdfOptions);
@@ -338,6 +347,73 @@ class PDFExportService {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  /**
+   * 处理页面格式 - 支持标准格式和自定义尺寸
+   * @param {string} format - 页面格式
+   * @param {Object} options - 导出选项
+   * @returns {Object} 格式配置对象
+   */
+  static handlePageFormat(format, options = {}) {
+    // 标准Puppeteer支持的格式
+    const standardFormats = [
+      "A0",
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "Letter",
+      "Legal",
+      "Tabloid",
+      "Ledger",
+    ];
+
+    // 如果是标准格式，直接使用
+    if (standardFormats.includes(format)) {
+      return { format: format };
+    }
+
+    // 自定义格式映射
+    const customFormats = {
+      PPT_16_9: { width: "254mm", height: "143mm" },
+      PPT_4_3: { width: "254mm", height: "190mm" },
+    };
+
+    // 如果是已知的自定义格式
+    if (customFormats[format]) {
+      return customFormats[format];
+    }
+
+    // 如果提供了自定义尺寸
+    if (options.width && options.height) {
+      return {
+        width: options.width,
+        height: options.height,
+      };
+    }
+
+    // 默认使用A4
+    console.warn(`未知的页面格式: ${format}，使用默认A4格式`);
+    return { format: "A4" };
+  }
+
+  /**
+   * 解析布尔值，处理字符串形式的布尔值
+   * @param {any} value - 要解析的值
+   * @param {boolean} defaultValue - 默认值
+   * @returns {boolean} 解析后的布尔值
+   */
+  static parseBoolean(value, defaultValue = false) {
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "string") {
+      return value.toLowerCase() === "true";
+    }
+    return defaultValue;
   }
 }
 

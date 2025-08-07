@@ -46,7 +46,7 @@
           :mode="mode"
           @select="$emit('select', $event)"
           @update="$emit('update', $event)"
-          @delete="$emit('delete', child.id)"
+          @delete="$emit('delete', $event)"
           @drop="$emit('drop', $event)"
         />
 

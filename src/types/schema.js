@@ -10,6 +10,7 @@ export const DEFAULT_PAGE_CONFIG = {
     width: 210, // mm
     height: 297, // mm
     unit: "mm", // px, mm, in
+    orientation: "portrait", // portrait, landscape
   },
 
   // 页面边距
