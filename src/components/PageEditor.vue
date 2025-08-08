@@ -58,7 +58,7 @@
         <div class="export-dropdown">
           <button class="btn" @click="toggleExportMenu">导出 ▼</button>
           <div v-if="showExportMenu" class="export-menu">
-            <button @click="exportAsPDF">导出为 PDF</button>
+            <!-- <button @click="exportAsPDF">导出为 PDF</button> -->
             <button @click="exportAsImage">导出为图片</button>
             <button @click="exportAsWord">导出为 Word</button>
             <button @click="exportAsHTML">导出为 HTML (Playwright)</button>

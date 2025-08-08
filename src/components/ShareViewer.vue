@@ -37,7 +37,16 @@
         </div>
         <div class="share-actions">
           <button @click="openInEditor" class="edit-btn">在编辑器中打开</button>
-          <button @click="exportPDF" class="export-btn">导出PDF</button>
+          <!-- <button @click="exportPDF" class="export-btn" :disabled="isExporting">
+            {{ isExporting ? "导出中..." : "导出PDF" }}
+          </button>
+          <button
+            @click="exportWord"
+            class="export-btn"
+            :disabled="isExporting"
+          >
+            {{ isExporting ? "导出中..." : "导出Word" }}
+          </button> -->
         </div>
       </div>
 
@@ -83,6 +92,7 @@
 
 <script>
 import { ServerShareManager } from "../utils/serverShareManager.js";
+import { exportPDF, exportWord } from "../apis";
 import Canvas from "./Canvas.vue";
 
 export default {
@@ -103,6 +113,7 @@ export default {
       errorTitle: "加载失败",
       shareData: null,
       stats: {},
+      isExporting: false,
     };
   },
   async mounted() {
@@ -173,15 +184,202 @@ export default {
     },
 
     async exportPDF() {
-      if (!this.shareData) return;
+      if (!this.shareData || this.isExporting) return;
 
+      this.isExporting = true;
       try {
-        // 这里可以调用PDF导出功能
-        // 暂时使用alert提示
-        alert("PDF导出功能开发中...");
+        console.log("开始导出 PDF...");
+
+        // 生成 HTML 内容
+        const htmlContent = this.generateHTMLContent();
+
+        // 调用服务端导出 API
+        await exportPDF(
+          htmlContent,
+          {
+            format: "A4",
+            orientation: "portrait",
+            margin: {
+              top: "20mm",
+              bottom: "20mm",
+              left: "20mm",
+              right: "20mm",
+            },
+          },
+          `share-${this.shareId}`
+        );
+
+        console.log("PDF 导出成功");
       } catch (error) {
-        console.error("导出PDF失败:", error);
-        alert("导出PDF失败: " + error.message);
+        console.error("PDF导出失败:", error);
+        alert(`PDF导出失败: ${error.message}`);
+      } finally {
+        this.isExporting = false;
+      }
+    },
+
+    async exportWord() {
+      if (!this.shareData || this.isExporting) return;
+
+      this.isExporting = true;
+      try {
+        console.log("开始导出 Word...");
+
+        // 调用服务端导出 API
+        await exportWord(
+          JSON.stringify(this.shareData.schema),
+          {
+            pageSize: "A4",
+            orientation: "portrait",
+            includePageTitles: true,
+          },
+          `share-${this.shareId}`
+        );
+
+        console.log("Word 导出成功");
+      } catch (error) {
+        console.error("Word导出失败:", error);
+        alert(`Word导出失败: ${error.message}`);
+      } finally {
+        this.isExporting = false;
+      }
+    },
+
+    // 生成 HTML 内容用于导出
+    generateHTMLContent() {
+      if (!this.shareData) return "";
+
+      const { schema } = this.shareData;
+      const { pageConfig, pages } = schema;
+
+      // 生成页面样式
+      const pageStyles = this.generatePageStyles(pageConfig);
+
+      // 生成页面内容
+      const pagesHTML = pages
+        .map((page, index) => {
+          return this.generatePageHTML(page, index);
+        })
+        .join("\n");
+
+      return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.shareData.options?.title || "页面设计"}</title>
+    <style>
+        ${pageStyles}
+    </style>
+</head>
+<body>
+    <div class="document">
+        ${pagesHTML}
+    </div>
+</body>
+</html>`;
+    },
+
+    // 生成页面样式
+    generatePageStyles(pageConfig) {
+      const { pageSize, margins } = pageConfig;
+
+      return `
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .document {
+            width: 100%;
+        }
+
+        .page {
+            width: ${pageSize.width}${pageSize.unit};
+            height: ${pageSize.height}${pageSize.unit};
+            margin: 0 auto 20px;
+            padding: ${margins.top}${pageSize.unit} ${margins.right}${pageSize.unit} ${margins.bottom}${pageSize.unit} ${margins.left}${pageSize.unit};
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            page-break-after: always;
+            position: relative;
+        }
+
+        .page:last-child {
+            margin-bottom: 0;
+        }
+
+        .component {
+            position: absolute;
+            word-wrap: break-word;
+        }
+
+        .component img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        @media print {
+            .page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+            }
+        }
+      `;
+    },
+
+    // 生成单个页面的 HTML
+    generatePageHTML(page, pageIndex) {
+      const componentsHTML = page.components
+        .map((component) => {
+          return this.generateComponentHTML(component);
+        })
+        .join("\n");
+
+      return `
+        <div class="page" data-page="${pageIndex + 1}">
+            ${componentsHTML}
+        </div>
+      `;
+    },
+
+    // 生成组件 HTML
+    generateComponentHTML(component) {
+      const { style = {}, content = "", type } = component;
+
+      // 构建样式字符串
+      const styleStr = Object.entries(style)
+        .map(([key, value]) => {
+          // 转换驼峰命名为CSS命名
+          const cssKey = key.replace(/([A-Z])/g, "-$1").toLowerCase();
+          return `${cssKey}: ${value}`;
+        })
+        .join("; ");
+
+      // 根据组件类型生成不同的 HTML
+      switch (type) {
+        case "text":
+          return `<div class="component" style="${styleStr}">${content}</div>`;
+        case "image":
+          return `<div class="component" style="${styleStr}"><img src="${content}" alt="图片" /></div>`;
+        case "layout": {
+          // 布局组件需要特殊处理
+          const childrenHTML = (component.children || [])
+            .map((child) => this.generateComponentHTML(child))
+            .join("\n");
+          return `<div class="component layout" style="${styleStr}">${childrenHTML}</div>`;
+        }
+        default:
+          return `<div class="component" style="${styleStr}">${content}</div>`;
       }
     },
 
@@ -332,6 +530,19 @@ export default {
 .export-btn {
   background: #007bff;
   color: white;
+}
+
+.edit-btn:disabled,
+.export-btn:disabled {
+  background: #6c757d;
+  color: #fff;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.edit-btn:disabled:hover,
+.export-btn:disabled:hover {
+  background: #6c757d;
 }
 
 .share-stats {
