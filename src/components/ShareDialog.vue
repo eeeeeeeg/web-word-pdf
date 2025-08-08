@@ -103,7 +103,7 @@
 </template>
 
 <script>
-import { ShareManager } from "../utils/shareManager.js";
+import { ServerShareManager } from "../utils/serverShareManager.js";
 
 export default {
   name: "ShareDialog",
@@ -128,7 +128,7 @@ export default {
   computed: {
     shareStats() {
       return (
-        ShareManager.getShareStats(this.schema) || {
+        ServerShareManager.calculateShareStats(this.schema) || {
           pageCount: 0,
           componentCount: 0,
           hasHeader: false,
@@ -150,7 +150,7 @@ export default {
 
       try {
         // 验证数据
-        if (!ShareManager.validateSchema(this.schema)) {
+        if (!ServerShareManager.validateSchema(this.schema)) {
           throw new Error("页面设计数据无效");
         }
 
@@ -161,7 +161,19 @@ export default {
           expiresIn: this.expiresIn,
         };
 
-        this.shareUrl = ShareManager.generateShareLink(this.schema, options);
+        const result = await ServerShareManager.createShare(
+          this.schema,
+          options
+        );
+
+        if (result.success) {
+          // 生成前端访问链接
+          this.shareUrl = ServerShareManager.generateFrontendShareUrl(
+            result.shareId
+          );
+        } else {
+          throw new Error("创建分享失败");
+        }
 
         // 重置复制状态
         this.copied = false;
@@ -179,7 +191,7 @@ export default {
       this.copying = true;
 
       try {
-        const success = await ShareManager.copyToClipboard(this.shareUrl);
+        const success = await ServerShareManager.copyToClipboard(this.shareUrl);
 
         if (success) {
           this.copied = true;

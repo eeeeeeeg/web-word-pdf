@@ -1,7 +1,7 @@
 <template>
   <div id="app" :class="{ 'share-mode': isShareMode }">
     <!-- 分享预览页面 -->
-    <SharePreview v-if="isShareMode" :share-id="shareId" />
+    <ShareViewer v-if="isShareMode" :share-id="shareId" />
     <!-- 正常编辑器 -->
     <PageEditor v-else />
   </div>
@@ -9,13 +9,13 @@
 
 <script>
 import PageEditor from "./components/PageEditor.vue";
-import SharePreview from "./components/SharePreview.vue";
+import ShareViewer from "./components/ShareViewer.vue";
 
 export default {
   name: "App",
   components: {
     PageEditor,
-    SharePreview,
+    ShareViewer,
   },
   data() {
     return {

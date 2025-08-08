@@ -234,6 +234,9 @@ export default {
 
     // 初始化自动分页监听器
     this.initializeAutoPagination();
+
+    // 监听分享数据导入事件
+    window.addEventListener("importShareData", this.handleImportShareData);
   },
 
   beforeDestroy() {
@@ -248,6 +251,7 @@ export default {
     }
     window.removeEventListener("beforeunload", this.handleBeforeUnload);
     document.removeEventListener("click", this.handleDocumentClick);
+    window.removeEventListener("importShareData", this.handleImportShareData);
   },
 
   computed: {
@@ -1923,6 +1927,38 @@ export default {
       } catch (error) {
         console.error("分页测试失败:", error);
         alert("分页测试失败: " + error.message);
+      }
+    },
+
+    // 处理导入分享数据
+    handleImportShareData() {
+      try {
+        const shareDataStr = localStorage.getItem("importShareData");
+        if (shareDataStr) {
+          const shareSchema = JSON.parse(shareDataStr);
+
+          // 验证数据格式
+          if (shareSchema && shareSchema.pages && shareSchema.pageConfig) {
+            // 导入分享的设计数据
+            this.pageSchema = shareSchema;
+
+            // 清除localStorage中的数据
+            localStorage.removeItem("importShareData");
+
+            // 重置选中状态
+            this.selectedComponent = null;
+
+            // 提示用户
+            alert("分享内容已成功导入到编辑器中！");
+          } else {
+            throw new Error("分享数据格式无效");
+          }
+        }
+      } catch (error) {
+        console.error("导入分享数据失败:", error);
+        alert("导入分享数据失败: " + error.message);
+        // 清除可能损坏的数据
+        localStorage.removeItem("importShareData");
       }
     },
   },
