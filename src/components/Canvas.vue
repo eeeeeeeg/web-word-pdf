@@ -61,7 +61,7 @@
             <CanvasComponent
               v-for="(component, componentIndex) in schema.pageConfig.header
                 .components"
-              :key="`header-${component.id}-${component._updateTimestamp || 0}`"
+              :key="`header-${component.id}`"
               :component="
                 processHeaderFooterComponent(
                   component,
@@ -81,7 +81,7 @@
           <div class="page-content" :style="contentStyle">
             <CanvasComponent
               v-for="(component, componentIndex) in page.components"
-              :key="`${component.id}-${component._updateTimestamp || 0}`"
+              :key="component.id"
               :component="component"
               :selected="
                 selectedComponent && selectedComponent.id === component.id

@@ -405,11 +405,7 @@ export default {
             });
 
             // 使用 Vue.set 或者直接替换数组元素来确保响应式更新
-            const updatedComponentWithTimestamp = {
-              ...updatedComponent,
-              _updateTimestamp: Date.now(),
-            };
-            this.$set(components, i, updatedComponentWithTimestamp);
+            this.$set(components, i, updatedComponent);
 
             console.log(
               "PageEditor: Component updated in pages with timestamp"
@@ -936,7 +932,6 @@ export default {
       const copiedComponent = {
         ...sourceComponent,
         id: newComponentId,
-        _updateTimestamp: Date.now(), // 更新时间戳以触发重新渲染
       };
 
       // 如果是布局组件，递归复制子组件

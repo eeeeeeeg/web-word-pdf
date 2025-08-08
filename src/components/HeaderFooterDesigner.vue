@@ -59,10 +59,10 @@
               <!-- 页眉区域 -->
               <div class="header-area">
                 <div class="area-label">页眉区域</div>
-                <div class="components-container">
+                <div class="components-container" @click="handleContainerClick">
                   <CanvasComponent
                     v-for="(component, index) in localConfig.components"
-                    :key="`${component.id}-${component._updateTimestamp || 0}`"
+                    :key="component.id"
                     :component="component"
                     :selected="
                       selectedComponent && selectedComponent.id === component.id
@@ -122,10 +122,10 @@
               <!-- 页脚区域 -->
               <div class="footer-area">
                 <div class="area-label">页脚区域</div>
-                <div class="components-container">
+                <div class="components-container" @click="handleContainerClick">
                   <CanvasComponent
                     v-for="(component, index) in localConfig.components"
-                    :key="`${component.id}-${component._updateTimestamp || 0}`"
+                    :key="component.id"
                     :component="component"
                     :selected="
                       selectedComponent && selectedComponent.id === component.id
@@ -157,12 +157,12 @@
         </div>
 
         <!-- 属性面板 -->
-        <div class="property-panel" v-if="selectedComponent">
-          <h4>属性设置</h4>
+        <div class="property-panel-container">
           <PropertyPanel
             :component="selectedComponent"
             :page-config="pageConfig"
             @update="handlePropertyUpdate"
+            @show-global-config="handleShowGlobalConfig"
           />
         </div>
       </div>
@@ -255,6 +255,13 @@ export default {
       this.selectedComponent = component;
     },
 
+    handleContainerClick(event) {
+      // 如果点击的是容器本身（不是子组件），则取消选择
+      if (event.target.classList.contains("components-container")) {
+        this.selectedComponent = null;
+      }
+    },
+
     handleComponentUpdate(updatedComponent) {
       // 递归查找并更新组件
       const updateComponentRecursively = (components, targetComponent) => {
@@ -267,10 +274,7 @@ export default {
             component.type === targetComponent.type
           ) {
             // 找到匹配的组件，进行更新
-            this.$set(components, i, {
-              ...targetComponent,
-              _updateTimestamp: Date.now(),
-            });
+            this.$set(components, i, targetComponent);
             return true; // 表示找到并更新了
           }
 
@@ -285,8 +289,6 @@ export default {
               targetComponent
             );
             if (found) {
-              // 如果在子组件中找到并更新了，也要更新父布局的时间戳
-              component._updateTimestamp = Date.now();
               return true;
             }
           }
@@ -519,6 +521,13 @@ export default {
     handleSave() {
       this.$emit("update", this.localConfig);
       this.$emit("close");
+    },
+
+    handleShowGlobalConfig() {
+      // 在页眉页脚设计器中，我们可以显示一个提示或者关闭设计器回到全局配置
+      alert(
+        "请关闭页眉页脚设计器，然后在主页面中点击全局配置按钮来设置页面配置"
+      );
     },
   },
 };
@@ -842,7 +851,7 @@ export default {
   font-weight: 500;
 }
 
-.property-panel {
+.property-panel-container {
   width: 340px;
   border-left: 1px solid #e0e0e0;
   background: #fafafa;
@@ -850,17 +859,6 @@ export default {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-}
-
-.property-panel h4 {
-  margin: 0;
-  padding: 20px 16px 16px 16px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #262626;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
-  flex-shrink: 0;
 }
 
 .panel-footer {

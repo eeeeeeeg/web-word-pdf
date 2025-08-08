@@ -11,6 +11,7 @@
     :data-component-id="component.id"
     :data-component-type="component.type"
     :draggable="mode === 'edit' && component.type !== 'text'"
+    @click="handleComponentClick"
     @dragstart="component.type !== 'text' ? handleDragStart : null"
     @dragend="
       component.type !== 'text' ? handleDragEnd : (dragOverPosition = null)
@@ -69,6 +70,7 @@
       :style="textStyle"
       :data-component-id="component.id"
       :data-component-type="component.type"
+      @click="handleTextComponentClick"
     >
       <RichTextEditor
         v-if="mode === 'edit'"
@@ -96,6 +98,7 @@
       :style="imageContainerStyle"
       :data-component-id="component.id"
       :data-component-type="component.type"
+      @click="handleImageComponentClick"
     >
       <!-- 显示上传的图片 -->
       <img
@@ -105,6 +108,7 @@
         :style="imageStyle"
         @load="handleImageLoad"
         @error="handleImageError"
+        @click="handleUploadedImageClick"
       />
 
       <!-- 上传中状态 -->
@@ -424,6 +428,58 @@ export default {
     },
   },
   methods: {
+    handleComponentClick(event) {
+      // 阻止事件冒泡，避免选中父组件
+      event.stopPropagation();
+
+      // 只在编辑模式下处理点击选择
+      if (this.mode === "edit") {
+        this.$emit("select", this.component);
+      }
+    },
+
+    handleTextComponentClick(event) {
+      // 文本组件的特殊点击处理
+      // 只有在点击文本组件边框或空白区域时才选中组件
+      // 如果点击的是富文本编辑器内容区域，则不阻止编辑
+      const target = event.target;
+      const isEditingArea =
+        target.closest(".tox-edit-area") ||
+        target.closest(".mce-content-body") ||
+        target.classList.contains("rich-text-wrapper");
+
+      if (!isEditingArea && this.mode === "edit") {
+        event.stopPropagation();
+        this.$emit("select", this.component);
+      }
+    },
+
+    handleImageComponentClick(event) {
+      // 图片组件的点击处理
+      const target = event.target;
+      const isUploadArea =
+        target.closest(".image-placeholder") || target.closest(".image-error");
+      const isUploadedImage =
+        target.tagName === "IMG" && target.closest(".image-component");
+
+      // 如果点击的是已上传的图片，直接选中组件
+      if (isUploadedImage && this.mode === "edit") {
+        event.stopPropagation();
+        this.$emit("select", this.component);
+      }
+      // 如果点击的不是上传区域，选中组件
+      else if (!isUploadArea && this.mode === "edit") {
+        event.stopPropagation();
+        this.$emit("select", this.component);
+      }
+      // 如果点击的是上传区域，也选中组件，但不阻止上传功能
+      else if (isUploadArea) {
+        if (this.mode === "edit") {
+          this.$emit("select", this.component);
+        }
+      }
+    },
+
     handleDelete() {
       this.$emit("delete", this.component.id);
     },
@@ -589,6 +645,16 @@ export default {
     handleImageUpload() {
       if (this.mode === "edit") {
         this.$refs.imageInput.click();
+      }
+    },
+
+    handleUploadedImageClick(event) {
+      // 处理已上传图片的点击
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (this.mode === "edit") {
+        this.$emit("select", this.component);
       }
     },
 
