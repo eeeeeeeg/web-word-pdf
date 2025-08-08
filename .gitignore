@@ -17,8 +17,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Test files (optional - remove if you want to track test files)
-test/*.html
+
 
 # Editor directories and files
 .idea

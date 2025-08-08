@@ -3,10 +3,14 @@
  * 用于与后端API交互，解决base64图片导致URL过长的问题
  */
 
-import axios from 'axios';
-
-// API基础URL
-const API_BASE_URL = process.env.VUE_APP_API_URL || 'http://localhost:3001/api';
+import {
+  createShare as apiCreateShare,
+  getShare as apiGetShare,
+  getShareStats as apiGetShareStats,
+  deleteShare as apiDeleteShare,
+  SHARE_ERRORS,
+  DEFAULT_SHARE_OPTIONS,
+} from "../apis/share";
 
 /**
  * 服务器端分享管理器
@@ -22,41 +26,31 @@ export class ServerShareManager {
     try {
       // 验证数据
       if (!this.validateSchema(schema)) {
-        throw new Error('页面设计数据无效');
+        throw new Error("页面设计数据无效");
       }
 
-      const response = await axios.post(`${API_BASE_URL}/share/create`, {
-        schema: schema,
-        options: {
-          title: options.title || '页面设计分享',
-          description: options.description || '',
-          expiresIn: options.expiresIn || 7 * 24 * 60 * 60 * 1000, // 默认7天
-        }
-      });
+      const response = await apiCreateShare(schema, options);
 
-      if (response.data.success) {
-        return {
-          success: true,
-          shareId: response.data.shareId,
-          shareUrl: response.data.shareUrl,
-          expiresAt: response.data.expiresAt,
-          expirationDate: response.data.expirationDate
-        };
-      } else {
-        throw new Error(response.data.message || '创建分享失败');
-      }
+      // 响应拦截器已经处理了 success 判断，直接使用返回的数据
+      return {
+        success: true,
+        shareId: response.shareId,
+        shareUrl: response.shareUrl,
+        expiresAt: response.expiresAt,
+        expirationDate: response.expirationDate,
+      };
     } catch (error) {
-      console.error('创建分享失败:', error);
-      
+      console.error("创建分享失败:", error);
+
       if (error.response) {
         // 服务器返回错误
-        throw new Error(error.response.data.message || '服务器错误');
+        throw new Error(error.response.data.message || "服务器错误");
       } else if (error.request) {
         // 网络错误
-        throw new Error('网络连接失败，请检查网络连接');
+        throw new Error("网络连接失败，请检查网络连接");
       } else {
         // 其他错误
-        throw new Error(error.message || '创建分享失败');
+        throw new Error(error.message || "创建分享失败");
       }
     }
   }
@@ -68,31 +62,28 @@ export class ServerShareManager {
    */
   static async getShare(shareId) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/share/${shareId}`);
+      const response = await apiGetShare(shareId);
 
-      if (response.data.success) {
-        return response.data.data;
-      } else {
-        throw new Error(response.data.message || '获取分享数据失败');
-      }
+      // 响应拦截器已经处理了 success 判断，并返回了 data.data（即 shareData）
+      return response;
     } catch (error) {
-      console.error('获取分享数据失败:', error);
-      
+      console.error("获取分享数据失败:", error);
+
       if (error.response) {
         const status = error.response.status;
-        const message = error.response.data.message;
-        
+        const message = error.response.data?.message;
+
         if (status === 404) {
-          throw new Error('分享不存在或已被删除');
+          throw new Error("分享不存在或已被删除");
         } else if (status === 410) {
-          throw new Error('分享已过期');
+          throw new Error("分享已过期");
         } else {
-          throw new Error(message || '获取分享数据失败');
+          throw new Error(message || "获取分享数据失败");
         }
       } else if (error.request) {
-        throw new Error('网络连接失败，请检查网络连接');
+        throw new Error("网络连接失败，请检查网络连接");
       } else {
-        throw new Error(error.message || '获取分享数据失败');
+        throw new Error(error.message || "获取分享数据失败");
       }
     }
   }
@@ -104,16 +95,13 @@ export class ServerShareManager {
    */
   static async getShareStats(shareId) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/share/${shareId}/stats`);
+      const response = await apiGetShareStats(shareId);
 
-      if (response.data.success) {
-        return response.data.stats;
-      } else {
-        throw new Error(response.data.message || '获取统计信息失败');
-      }
+      // 响应拦截器已经处理了 success 判断，返回 stats 数据
+      return response.stats;
     } catch (error) {
-      console.error('获取分享统计失败:', error);
-      throw new Error(error.response?.data?.message || '获取统计信息失败');
+      console.error("获取分享统计失败:", error);
+      throw new Error(error.response?.data?.message || "获取统计信息失败");
     }
   }
 
@@ -124,10 +112,11 @@ export class ServerShareManager {
    */
   static async deleteShare(shareId) {
     try {
-      const response = await axios.delete(`${API_BASE_URL}/share/${shareId}`);
-      return response.data.success;
+      await apiDeleteShare(shareId);
+      // 响应拦截器已经处理了 success 判断，如果到这里说明删除成功
+      return true;
     } catch (error) {
-      console.error('删除分享失败:', error);
+      console.error("删除分享失败:", error);
       return false;
     }
   }
@@ -138,16 +127,20 @@ export class ServerShareManager {
    * @returns {boolean} 是否有效
    */
   static validateSchema(schema) {
-    if (!schema || typeof schema !== 'object') {
+    if (!schema || typeof schema !== "object") {
       return false;
     }
 
     // 检查必要的属性
-    if (!schema.pages || !Array.isArray(schema.pages) || schema.pages.length === 0) {
+    if (
+      !schema.pages ||
+      !Array.isArray(schema.pages) ||
+      schema.pages.length === 0
+    ) {
       return false;
     }
 
-    if (!schema.pageConfig || typeof schema.pageConfig !== 'object') {
+    if (!schema.pageConfig || typeof schema.pageConfig !== "object") {
       return false;
     }
 
@@ -180,7 +173,7 @@ export class ServerShareManager {
       const match = url.match(/#\/share\/([a-f0-9]{32})/);
       return match ? match[1] : null;
     } catch (error) {
-      console.error('提取分享ID失败:', error);
+      console.error("提取分享ID失败:", error);
       return null;
     }
   }
@@ -197,20 +190,20 @@ export class ServerShareManager {
         return true;
       } else {
         // 降级方案
-        const textArea = document.createElement('textarea');
+        const textArea = document.createElement("textarea");
         textArea.value = url;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-        const result = document.execCommand('copy');
+        const result = document.execCommand("copy");
         textArea.remove();
         return result;
       }
     } catch (error) {
-      console.error('复制到剪贴板失败:', error);
+      console.error("复制到剪贴板失败:", error);
       return false;
     }
   }
@@ -227,7 +220,7 @@ export class ServerShareManager {
         componentCount: 0,
         hasHeader: false,
         hasFooter: false,
-        pageSize: 'Unknown'
+        pageSize: "Unknown",
       };
     }
 
@@ -236,11 +229,11 @@ export class ServerShareManager {
       componentCount: 0,
       hasHeader: schema.pageConfig.header.enabled,
       hasFooter: schema.pageConfig.footer.enabled,
-      pageSize: `${schema.pageConfig.pageSize.width}×${schema.pageConfig.pageSize.height}${schema.pageConfig.pageSize.unit}`
+      pageSize: `${schema.pageConfig.pageSize.width}×${schema.pageConfig.pageSize.height}${schema.pageConfig.pageSize.unit}`,
     };
 
     // 统计组件数量
-    schema.pages.forEach(page => {
+    schema.pages.forEach((page) => {
       stats.componentCount += page.components.length;
     });
 
@@ -256,23 +249,5 @@ export class ServerShareManager {
   }
 }
 
-/**
- * 分享错误类型
- */
-export const SHARE_ERRORS = {
-  INVALID_DATA: 'INVALID_DATA',
-  SHARE_NOT_FOUND: 'SHARE_NOT_FOUND',
-  SHARE_EXPIRED: 'SHARE_EXPIRED',
-  NETWORK_ERROR: 'NETWORK_ERROR',
-  CREATE_FAILED: 'CREATE_FAILED',
-  FETCH_FAILED: 'FETCH_FAILED'
-};
-
-/**
- * 默认分享选项
- */
-export const DEFAULT_SHARE_OPTIONS = {
-  title: '页面设计分享',
-  description: '',
-  expiresIn: 7 * 24 * 60 * 60 * 1000 // 7天
-};
+// 导出常量（从 APIs 中重新导出）
+export { SHARE_ERRORS, DEFAULT_SHARE_OPTIONS };

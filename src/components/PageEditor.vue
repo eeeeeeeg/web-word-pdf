@@ -184,7 +184,7 @@ import GlobalConfig from "./GlobalConfig.vue";
 import PaginationWarnings from "./PaginationWarnings.vue";
 import ShareDialog from "./ShareDialog.vue";
 
-import { exportPDF, exportWord } from "@/apis/dowload/index.js";
+import { exportPDF, exportWord } from "@/apis";
 
 export default {
   name: "PageEditor",

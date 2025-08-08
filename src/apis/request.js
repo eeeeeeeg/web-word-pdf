@@ -1,13 +1,16 @@
 import axios from "axios";
 import { saveAs } from "file-saver";
+import { API_BASE_URL, REQUEST_CONFIG } from "./config";
 
 // 验证是否为blob格式
 function blobValidate(data) {
   return data.type !== "application/json";
 }
+
 // 创建 axios 实例
 const apiClient = axios.create({
-  timeout: 10000, // 请求超时时间
+  baseURL: API_BASE_URL,
+  timeout: REQUEST_CONFIG.TIMEOUT,
   headers: {
     "Content-Type": "application/json",
   },

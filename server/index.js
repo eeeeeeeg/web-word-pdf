@@ -23,12 +23,89 @@ app.use(
 );
 app.use(compression());
 app.use(morgan("combined"));
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:8080",
-    credentials: true,
-  })
-);
+// CORS 配置
+const setupCORS = () => {
+  // 从环境变量获取允许的源
+  const envOrigins = process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
+    : [];
+
+  // 默认允许的源列表
+  const defaultOrigins = [
+    process.env.FRONTEND_URL || "http://localhost:8080",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:3000", // 常见的开发端口
+    "http://127.0.0.1:3000",
+  ];
+
+  // 合并环境变量和默认配置
+  const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
+
+  console.log("CORS allowed origins:", allowedOrigins);
+
+  return {
+    origin: function (origin, callback) {
+      console.log(
+        `CORS check - Origin: ${origin}, NODE_ENV: ${process.env.NODE_ENV}`
+      );
+
+      // 开发环境下允许无 origin 的请求（如 Postman、移动端应用等）
+      if (process.env.NODE_ENV === "development" && !origin) {
+        console.log("CORS: Allowing request with no origin (development mode)");
+        return callback(null, true);
+      }
+
+      // 检查 origin 是否在允许列表中
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        console.log(`CORS: Allowing origin ${origin}`);
+        callback(null, true);
+      } else {
+        console.warn(`CORS blocked origin: ${origin}`);
+        console.warn(`Allowed origins: ${allowedOrigins.join(", ")}`);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: process.env.CORS_ALLOW_CREDENTIALS !== "false",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+    ],
+    optionsSuccessStatus: 200, // 支持老版本浏览器
+    preflightContinue: false,
+  };
+};
+
+// 应用 CORS 中间件
+if (process.env.CORS_ENABLED !== "false") {
+  // 开发环境使用更宽松的 CORS 配置
+  if (process.env.NODE_ENV === "development") {
+    app.use(
+      cors({
+        origin: true, // 允许所有 origin（仅开发环境）
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allowedHeaders: [
+          "Content-Type",
+          "Authorization",
+          "X-Requested-With",
+          "Accept",
+          "Origin",
+        ],
+      })
+    );
+    console.log("CORS enabled (development mode - allowing all origins)");
+  } else {
+    app.use(cors(setupCORS()));
+    console.log("CORS enabled (production mode)");
+  }
+} else {
+  console.log("CORS disabled");
+}
 
 // 解析JSON和URL编码的请求体
 app.use(express.json({ limit: "50mb" }));
