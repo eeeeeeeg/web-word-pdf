@@ -27,7 +27,10 @@
 
           <div class="form-group">
             <label>页面方向:</label>
-            <select v-model="localConfig.pageSize.orientation">
+            <select
+              v-model="localConfig.pageSize.orientation"
+              @change="handleOrientationChange"
+            >
               <option value="portrait">纵向 (Portrait)</option>
               <option value="landscape">横向 (Landscape)</option>
             </select>
@@ -309,6 +312,46 @@ export default {
           this.localConfig.pageSize.orientation =
             currentOrientation || preset.orientation;
         }
+
+        // 应用方向设置到尺寸
+        this.applyOrientationToSize();
+      }
+    },
+
+    handleOrientationChange() {
+      // 当页面方向改变时，交换宽高
+      this.applyOrientationToSize();
+    },
+
+    applyOrientationToSize() {
+      // 跳过自定义尺寸，让用户自己控制
+      if (this.localConfig.pageSize.preset === "Custom") {
+        return;
+      }
+
+      const { orientation } = this.localConfig.pageSize;
+
+      // 获取预设的原始尺寸（纵向）
+      const presets = {
+        A4: { width: 210, height: 297 },
+        A3: { width: 297, height: 420 },
+        Letter: { width: 216, height: 279 },
+        PPT_16_9: { width: 254, height: 143 },
+        PPT_4_3: { width: 254, height: 190 },
+      };
+
+      const preset = presets[this.localConfig.pageSize.preset];
+      if (!preset) return;
+
+      // 根据方向设置正确的宽高
+      if (orientation === "portrait") {
+        // 纵向：使用预设的原始尺寸
+        this.localConfig.pageSize.width = preset.width;
+        this.localConfig.pageSize.height = preset.height;
+      } else if (orientation === "landscape") {
+        // 横向：交换宽高
+        this.localConfig.pageSize.width = preset.height;
+        this.localConfig.pageSize.height = preset.width;
       }
     },
 
