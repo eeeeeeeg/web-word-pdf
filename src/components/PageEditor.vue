@@ -1188,6 +1188,7 @@ export default {
         .join("");
 
       const headerHeight = this.pageSchema.pageConfig.header.height || 15; // mm
+      console.log("export 页眉 内容:", headerHTML);
 
       return `
         <div style="
@@ -1358,15 +1359,12 @@ export default {
               config.header.enabled ? config.header.height * 3.78 : 0
             }px;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
             border-bottom: 1px solid #f0f0f0;
             background: rgba(248, 248, 248, 0.8);
             width: 100%;
             overflow: hidden;
             box-sizing: border-box;
-            padding: 8px 16px;
-            z-index: 10;
         }
 
         .page-footer {
@@ -1378,15 +1376,12 @@ export default {
               config.footer.enabled ? config.footer.height * 3.78 : 0
             }px;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
             border-top: 1px solid #f0f0f0;
             background: rgba(248, 248, 248, 0.8);
             width: 100%;
             overflow: hidden;
             box-sizing: border-box;
-            padding: 8px 16px;
-            z-index: 10;
         }
 
         .page-content {
@@ -1541,14 +1536,12 @@ export default {
             right: 0;
             height: ${config.header.height * 3.78}px;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
             border-bottom: 1px solid #f0f0f0;
             background: rgba(248, 248, 248, 0.8);
             width: 100%;
             overflow: hidden;
             box-sizing: border-box;
-            padding: 8px 16px;
             z-index: 10;
           ">
             ${headerComponentsHTML}
@@ -1588,20 +1581,15 @@ export default {
             right: 0;
             height: ${config.footer.height * 3.78}px;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
             border-top: 1px solid #f0f0f0;
             background: rgba(248, 248, 248, 0.8);
             width: 100%;
             overflow: hidden;
             box-sizing: border-box;
-            padding: 8px 16px;
             z-index: 10;
           ">
             ${footerComponentsHTML}
-            <div style="font-size: 10px; font-family: Arial, sans-serif; color: #333; margin-left: auto;">
-              第 ${pageIndex + 1} 页 / 共 ${this.pageSchema.pages.length} 页
-            </div>
           </div>
         `;
       }
@@ -1639,7 +1627,7 @@ export default {
       const style = component.style;
 
       if (isHeaderFooter) {
-        // 为页眉页脚生成内联样式的布局
+        // 为页眉页脚生成内联样式的布局 - 与Canvas.vue中的预览样式保持一致
         const layoutStyle = `
           margin: ${style.margin.top}px ${style.margin.right}px ${
           style.margin.bottom
@@ -1648,23 +1636,21 @@ export default {
           style.padding.bottom
         }px ${style.padding.left}px;
           display: flex;
+          align-items: stretch;
           justify-content: ${component.alignment || "flex-start"};
-          align-items: center;
+          min-height: ${style.minHeight || 60}px;
+          gap: 8px;
           width: 100%;
-          height: 100%;
           box-sizing: border-box;
-          flex: 1;
         `;
 
         const columnsHTML = component.columns
           .map((column, index) => {
             const columnStyle = `
               flex: 0 0 ${column.width}%;
-              padding: 2px 4px;
+              padding: 8px;
+              position: relative;
               box-sizing: border-box;
-              display: flex;
-              align-items: center;
-              height: 100%;
             `;
             const children = component.children
               ? component.children.filter(
@@ -1725,10 +1711,14 @@ export default {
       const style = component.style;
 
       if (isHeaderFooter) {
-        // 为页眉页脚生成完全内联的样式
-        const inlineStyle = `
+        // 为页眉页脚生成与CanvasComponent.vue一致的样式
+        const textStyle = `
           margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
-          padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
+          padding: 8px;
+          min-height: 24px;
+        `;
+
+        const contentStyle = `
           font-size: ${style.fontSize}px;
           font-family: ${style.fontFamily};
           color: ${style.color};
@@ -1737,16 +1727,23 @@ export default {
           font-weight: ${style.fontWeight};
           font-style: ${style.fontStyle};
           text-decoration: ${style.textDecoration};
-          display: flex;
-          align-items: center;
-          height: 100%;
+          width: 100%;
+          min-height: inherit;
+          word-wrap: break-word;
+          word-break: break-word;
+          overflow-wrap: break-word;
+          background: transparent;
+          margin: 0;
           box-sizing: border-box;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
         `;
 
-        return `<div style="${inlineStyle}">${component.content || ""}</div>`;
+        return `
+          <div style="${textStyle}">
+            <div style="${contentStyle}">
+              ${component.content || ""}
+            </div>
+          </div>
+        `;
       } else {
         // 普通页面内容的样式 - 与CanvasComponent.vue的textStyle保持一致
         const textStyle = `
@@ -1789,36 +1786,54 @@ export default {
       const alignment = component.alignment || "left";
 
       if (isHeaderFooter) {
-        // 页眉页脚中的图片需要特殊处理
-        const headerFooterHeight = isHeaderFooter
-          ? (this.pageSchema.pageConfig.header.enabled
-              ? this.pageSchema.pageConfig.header.height
-              : this.pageSchema.pageConfig.footer.height) || 15
-          : 15;
+        // 页眉页脚中的图片处理 - 与CanvasComponent.vue的imageContainerStyle保持一致
+        const alignment = component.alignment || "left";
 
-        // 限制图片最大高度为页眉页脚高度的80%
-        const maxHeight = Math.floor(headerFooterHeight * 3.78 * 0.8);
-        const maxWidth = Math.min(style.width, 100); // 限制最大宽度为100px
+        // 根据对齐方式设置 flexbox 对齐
+        let justifyContent = "flex-start";
+        if (alignment === "left") {
+          justifyContent = "flex-start";
+        } else if (alignment === "right") {
+          justifyContent = "flex-end";
+        } else if (alignment === "center") {
+          justifyContent = "center";
+        }
 
         const containerStyle = `
           margin: ${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px;
           padding: ${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px;
           display: flex;
-          align-items: center;
-          height: 100%;
-          box-sizing: border-box;
+          justify-content: ${justifyContent};
+          align-items: flex-start;
+          width: 100%;
         `;
 
-        const imageStyle = `
-          max-width: ${maxWidth}px;
-          max-height: ${maxHeight}px;
-          width: auto;
-          height: auto;
-          object-fit: contain;
-          border-radius: ${style.borderRadius}px;
-          border: ${style.border};
-          display: block;
-        `;
+        // 检查是否设置了定高模式
+        const useFixedHeight = component.fixedHeight;
+        let imageStyle;
+
+        if (useFixedHeight) {
+          // 定高模式：设置固定高度，宽度自动，保持纵横比
+          imageStyle = `
+            height: ${style.height}px;
+            width: auto;
+            max-height: ${style.height}px;
+            max-width: 100%;
+            object-fit: ${style.objectFit};
+            border-radius: ${style.borderRadius}px;
+            border: ${style.border};
+          `;
+        } else {
+          // 原有逻辑：根据keepAspectRatio决定
+          imageStyle = `
+            width: ${style.width}px;
+            height: ${component.keepAspectRatio ? "auto" : `${style.height}px`};
+            max-width: 100%;
+            object-fit: ${style.objectFit};
+            border-radius: ${style.borderRadius}px;
+            border: ${style.border};
+          `;
+        }
 
         if (!component.src) {
           return `<div style="${containerStyle}"><span style="color: #999; font-size: 10px;">图片未加载</span></div>`;

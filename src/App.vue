@@ -72,4 +72,7 @@ body {
   margin: 0;
   padding: 0;
 }
+.tox.tox-tinymce-inline {
+  z-index: 3000;
+}
 </style>
