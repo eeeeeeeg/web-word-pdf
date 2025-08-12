@@ -247,6 +247,7 @@ export default {
   watch: {
     component: {
       handler(newComponent) {
+        console.log("PropertyPanel 接收到组件:", newComponent);
         if (newComponent) {
           this.localComponent = JSON.parse(JSON.stringify(newComponent));
         } else {

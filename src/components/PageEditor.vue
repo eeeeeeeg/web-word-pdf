@@ -333,6 +333,7 @@ export default {
     },
 
     handleComponentSelect(component) {
+      console.log("选中组件:", component);
       this.selectedComponent = component;
     },
 

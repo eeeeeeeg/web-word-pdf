@@ -98,7 +98,7 @@
               :index="componentIndex"
               :total="page.components.length"
               :page-config="schema.pageConfig"
-              @select="$emit('component-select', component)"
+              @select="(_component) => $emit('component-select', _component)"
               @update="update"
               @delete="
                 (componentId) => {

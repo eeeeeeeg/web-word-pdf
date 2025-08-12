@@ -10,8 +10,7 @@
     :data-drag-position="dragOverPosition"
     :data-component-id="component.id"
     :data-component-type="component.type"
-    :draggable="mode === 'edit' && component.type !== 'text'"
-    @click="handleComponentClick"
+    @click="component.type === 'layout' ? handleComponentClick : null"
     @dragstart="component.type !== 'text' ? handleDragStart : null"
     @dragend="
       component.type !== 'text' ? handleDragEnd : (dragOverPosition = null)
@@ -108,7 +107,6 @@
         :style="imageStyle"
         @load="handleImageLoad"
         @error="handleImageError"
-        @click="handleUploadedImageClick"
       />
 
       <!-- 上传中状态 -->
@@ -434,49 +432,38 @@ export default {
 
       // 只在编辑模式下处理点击选择
       if (this.mode === "edit") {
+        console.log("点击组件:", this.component.type, this.component.id);
         this.$emit("select", this.component);
       }
     },
 
     handleTextComponentClick(event) {
       // 文本组件的特殊点击处理
-      // 只有在点击文本组件边框或空白区域时才选中组件
-      // 如果点击的是富文本编辑器内容区域，则不阻止编辑
-      const target = event.target;
-      const isEditingArea =
-        target.closest(".tox-edit-area") ||
-        target.closest(".mce-content-body") ||
-        target.classList.contains("rich-text-wrapper");
+      console.log("🔥 文本组件点击:", this.component.id);
 
-      if (!isEditingArea && this.mode === "edit") {
-        event.stopPropagation();
+      // 阻止事件冒泡
+      event.stopPropagation();
+      event.preventDefault();
+
+      // 强制选中组件
+      if (this.mode === "edit") {
+        console.log("🎯 发出选中事件:", this.component);
         this.$emit("select", this.component);
       }
     },
 
     handleImageComponentClick(event) {
       // 图片组件的点击处理
-      const target = event.target;
-      const isUploadArea =
-        target.closest(".image-placeholder") || target.closest(".image-error");
-      const isUploadedImage =
-        target.tagName === "IMG" && target.closest(".image-component");
+      console.log("🔥 图片组件点击:", this.component.id);
 
-      // 如果点击的是已上传的图片，直接选中组件
-      if (isUploadedImage && this.mode === "edit") {
-        event.stopPropagation();
+      // 阻止事件冒泡
+      event.stopPropagation();
+      event.preventDefault();
+
+      // 强制选中组件
+      if (this.mode === "edit") {
+        console.log("🎯 发出选中事件:", this.component);
         this.$emit("select", this.component);
-      }
-      // 如果点击的不是上传区域，选中组件
-      else if (!isUploadArea && this.mode === "edit") {
-        event.stopPropagation();
-        this.$emit("select", this.component);
-      }
-      // 如果点击的是上传区域，也选中组件，但不阻止上传功能
-      else if (isUploadArea) {
-        if (this.mode === "edit") {
-          this.$emit("select", this.component);
-        }
       }
     },
 
@@ -645,16 +632,6 @@ export default {
     handleImageUpload() {
       if (this.mode === "edit") {
         this.$refs.imageInput.click();
-      }
-    },
-
-    handleUploadedImageClick(event) {
-      // 处理已上传图片的点击
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (this.mode === "edit") {
-        this.$emit("select", this.component);
       }
     },
 
