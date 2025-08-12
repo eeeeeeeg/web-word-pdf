@@ -122,12 +122,15 @@
             :schema="pageSchema"
             :mode="mode"
             :selected-component="selectedComponent"
+            :style-update-trigger="styleUpdateTrigger"
             @component-select="handleComponentSelect"
             @component-drop="handleComponentDrop"
             @component-drop-adjacent="handleComponentDropAdjacent"
             @component-update="handleComponentUpdate"
             @component-delete="handleComponentDelete"
             @component-copy="handleComponentCopy"
+            @page-click="handlePageClick"
+            @page-style-config="openPageStyleConfig"
             @component-sort="handleComponentSort"
             @component-move="handleComponentMove"
             @page-select="switchPage"
@@ -148,6 +151,16 @@
         />
       </div>
     </div>
+
+    <!-- 页面样式配置弹窗 -->
+    <PageStyleConfig
+      v-if="showPageStyleConfig"
+      :page="pageSchema.pages[currentPageIndex]"
+      :page-config="pageSchema.pageConfig"
+      @update="handlePageStyleUpdate"
+      @update-realtime="handlePageStyleUpdateRealtime"
+      @close="showPageStyleConfig = false"
+    />
   </div>
 </template>
 
@@ -183,8 +196,10 @@ import PropertyPanel from "./PropertyPanel.vue";
 import GlobalConfig from "./GlobalConfig.vue";
 import PaginationWarnings from "./PaginationWarnings.vue";
 import ShareDialog from "./ShareDialog.vue";
+import PageStyleConfig from "./PageStyleConfig.vue";
 
 import { exportPDF, exportWord } from "@/apis";
+import SchemaToHtmlConverter from "@/utils/schemaToHtml";
 
 export default {
   name: "PageEditor",
@@ -195,6 +210,7 @@ export default {
     GlobalConfig,
     PaginationWarnings,
     ShareDialog,
+    PageStyleConfig,
   },
   data() {
     return {
@@ -213,6 +229,11 @@ export default {
       paginationInProgress: false,
       paginationWarnings: [],
       paginationDebounceTimer: null,
+      // 页面样式配置
+      showPageStyleConfig: false,
+      currentPageIndex: 0,
+      // 样式更新触发器，用于强制Vue重新渲染
+      styleUpdateTrigger: 0,
     };
   },
 
@@ -270,6 +291,41 @@ export default {
       if (mode === "preview") {
         this.selectedComponent = null;
       }
+    },
+
+    // 处理页面点击事件
+    handlePageClick(pageIndex, event) {
+      // 检查是否是双击事件
+      if (event.detail === 2) {
+        this.openPageStyleConfig(pageIndex);
+      }
+    },
+
+    // 打开页面样式配置
+    openPageStyleConfig(pageIndex) {
+      this.currentPageIndex = pageIndex;
+      this.showPageStyleConfig = true;
+    },
+
+    // 处理页面样式更新（保存时）
+    handlePageStyleUpdate(updatedPage) {
+      // 更新页面数据
+      this.pageSchema.pages[this.currentPageIndex] = updatedPage;
+
+      // 更新时间戳
+      this.updateTimestamp();
+
+      // 标记有未保存的更改
+      this.markAsChanged();
+    },
+
+    // 处理页面样式实时更新（预览时）
+    handlePageStyleUpdateRealtime(updatedPage) {
+      // 使用Vue.set确保响应式更新
+      this.$set(this.pageSchema.pages, this.currentPageIndex, updatedPage);
+
+      // 增加触发器值，强制重新渲染
+      this.styleUpdateTrigger++;
     },
 
     handleDragStart(componentData) {
@@ -1136,33 +1192,12 @@ export default {
 
     // HTML 导出相关方法
     generatePlaywrightHTML() {
-      const config = this.pageSchema.pageConfig;
-      const pages = this.pageSchema.pages;
-
-      // 生成页面样式
-      const pageStyles = this.generatePageStyles(config);
-
-      // 生成页面内容
-      const pagesHTML = pages
-        .map((page, index) => this.generatePageHTML(page, index, config))
-        .join("\n");
-
-      return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>页面设计导出</title>
-    <style>
-        ${pageStyles}
-    </style>
-</head>
-<body>
-    <div class="document-container">
-        ${pagesHTML}
-    </div>
-</body>
-</html>`;
+      // 使用统一的转换器
+      return SchemaToHtmlConverter.convertToFullHTML(this.pageSchema, {
+        title: "页面设计导出",
+        environment: "web",
+        includeHeaderFooter: true,
+      });
     },
 
     // 生成页眉模板
@@ -1361,7 +1396,7 @@ export default {
             display: flex;
             flex-direction: column;
             border-bottom: 1px solid #f0f0f0;
-            background: rgba(248, 248, 248, 0.8);
+            background: transparent;
             width: 100%;
             overflow: hidden;
             box-sizing: border-box;
@@ -1378,7 +1413,7 @@ export default {
             display: flex;
             flex-direction: column;
             border-top: 1px solid #f0f0f0;
-            background: rgba(248, 248, 248, 0.8);
+            background: transparent;
             width: 100%;
             overflow: hidden;
             box-sizing: border-box;
@@ -1528,6 +1563,16 @@ export default {
           .map((component) => this.generateComponentHTML(component, true))
           .join("\n");
 
+        // 生成页眉背景样式
+        let headerBackgroundStyle = "background: transparent;";
+        if (
+          config.header.style &&
+          config.header.style.backgroundColor &&
+          config.header.style.backgroundColor !== "transparent"
+        ) {
+          headerBackgroundStyle = `background: ${config.header.style.backgroundColor};`;
+        }
+
         headerHTML = `
           <div class="page-header" style="
             position: absolute;
@@ -1538,7 +1583,7 @@ export default {
             display: flex;
             flex-direction: column;
             border-bottom: 1px solid #f0f0f0;
-            background: rgba(248, 248, 248, 0.8);
+            ${headerBackgroundStyle}
             width: 100%;
             overflow: hidden;
             box-sizing: border-box;
@@ -1573,6 +1618,16 @@ export default {
           .map((component) => this.generateComponentHTML(component, true))
           .join("\n");
 
+        // 生成页脚背景样式
+        let footerBackgroundStyle = "background: transparent;";
+        if (
+          config.footer.style &&
+          config.footer.style.backgroundColor &&
+          config.footer.style.backgroundColor !== "transparent"
+        ) {
+          footerBackgroundStyle = `background: ${config.footer.style.backgroundColor};`;
+        }
+
         footerHTML = `
           <div class="page-footer" style="
             position: absolute;
@@ -1583,7 +1638,7 @@ export default {
             display: flex;
             flex-direction: column;
             border-top: 1px solid #f0f0f0;
-            background: rgba(248, 248, 248, 0.8);
+            ${footerBackgroundStyle}
             width: 100%;
             overflow: hidden;
             box-sizing: border-box;
@@ -1599,8 +1654,52 @@ export default {
         .map((component) => this.generateComponentHTML(component))
         .join("\n");
 
+      // 生成页面背景样式
+      let pageBackgroundStyle = "";
+      if (page.style) {
+        const style = page.style;
+        const backgroundStyles = [];
+
+        // 背景色
+        if (style.backgroundColor && style.backgroundColor !== "transparent") {
+          backgroundStyles.push(`background-color: ${style.backgroundColor}`);
+        }
+
+        // 背景图片
+        if (style.backgroundImage) {
+          backgroundStyles.push(
+            `background-image: url(${style.backgroundImage})`
+          );
+          backgroundStyles.push(
+            `background-position: ${style.backgroundPosition || "center"}`
+          );
+          backgroundStyles.push(
+            `background-repeat: ${style.backgroundRepeat || "no-repeat"}`
+          );
+
+          // 背景尺寸模式
+          switch (style.backgroundSize) {
+            case "cover":
+              backgroundStyles.push("background-size: cover");
+              break;
+            case "contain":
+              backgroundStyles.push("background-size: contain");
+              break;
+            case "stretch":
+              backgroundStyles.push("background-size: 100% 100%");
+              break;
+            default:
+              backgroundStyles.push("background-size: cover");
+          }
+        }
+
+        if (backgroundStyles.length > 0) {
+          pageBackgroundStyle = ` style="${backgroundStyles.join("; ")}"`;
+        }
+      }
+
       return `
-        <div class="${pageClass}">
+        <div class="${pageClass}"${pageBackgroundStyle}>
           ${headerHTML}
           <div class="page-content">
             ${contentHTML}

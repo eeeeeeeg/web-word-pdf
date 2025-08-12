@@ -1,6 +1,7 @@
 const { chromium } = require("playwright");
 const fs = require("fs-extra");
 const path = require("path");
+const SchemaToHtmlConverter = require("../utils/schemaToHtml");
 
 class PDFExportService {
   /**
@@ -161,6 +162,11 @@ class PDFExportService {
           max-width: 100%;
           margin: 0 auto;
           background: white;
+          min-height: 100vh;
+          position: relative;
+        }
+        .page[style*="background"] {
+          background: white; /* 默认背景，会被内联样式覆盖 */
         }
         .component {
           margin-bottom: 16px;
@@ -215,138 +221,12 @@ class PDFExportService {
    * @returns {string} HTML内容
    */
   static convertSchemaToHTML(schema, options = {}) {
-    if (!schema || !schema.pages) {
-      throw new Error("无效的Schema数据");
-    }
-
-    let html = "";
-
-    // 处理每个页面
-    schema.pages.forEach((page, pageIndex) => {
-      // 在除第一页之外的每一页之前添加分页符
-      if (pageIndex > 0) {
-        html += `<div class="page-break"></div>`;
-      }
-
-      html += `<div class="page" data-page="${pageIndex + 1}">`;
-
-      // 添加页面标题（可选）
-      if (options.includePageTitles && page.name) {
-        html += `<h1 class="page-title">${this.escapeHtml(page.name)}</h1>`;
-      }
-
-      // 处理页面组件
-      if (page.components && page.components.length > 0) {
-        page.components.forEach((component) => {
-          html += this.convertComponentToHTML(component);
-        });
-      }
-
-      html += "</div>";
+    // 使用统一的转换器，设置为PDF环境
+    return SchemaToHtmlConverter.convertToFullHTML(schema, {
+      ...options,
+      environment: "pdf",
+      includeDoctype: false, // PDF导出不需要完整的HTML文档结构
     });
-
-    return html;
-  }
-
-  /**
-   * 将组件转换为HTML
-   * @param {Object} component - 组件数据
-   * @returns {string} HTML内容
-   */
-  static convertComponentToHTML(component) {
-    if (!component || !component.type) {
-      return "";
-    }
-
-    const style = this.buildComponentStyle(component.style || {});
-    const className = `component ${component.type}-component`;
-
-    switch (component.type) {
-      case "text":
-        return `<div class="${className}" style="${style}">${
-          component.content || ""
-        }</div>`;
-
-      case "image":
-        const imgSrc = component.src || component.content || "";
-        const imgAlt = component.alt || "Image";
-        return `<div class="${className}" style="${style}"><img src="${imgSrc}" alt="${this.escapeHtml(
-          imgAlt
-        )}" /></div>`;
-
-      case "layout":
-        let layoutHtml = `<div class="${className}" style="${style}">`;
-        if (component.children && component.children.length > 0) {
-          component.children.forEach((child) => {
-            layoutHtml += `<div class="layout-column">${this.convertComponentToHTML(
-              child
-            )}</div>`;
-          });
-        }
-        layoutHtml += "</div>";
-        return layoutHtml;
-
-      default:
-        return `<div class="${className}" style="${style}">${
-          component.content || ""
-        }</div>`;
-    }
-  }
-
-  /**
-   * 构建组件样式字符串
-   * @param {Object} style - 样式对象
-   * @returns {string} CSS样式字符串
-   */
-  static buildComponentStyle(style) {
-    const styles = [];
-
-    if (style.fontSize) styles.push(`font-size: ${style.fontSize}px`);
-    if (style.fontFamily) styles.push(`font-family: ${style.fontFamily}`);
-    if (style.color) styles.push(`color: ${style.color}`);
-    if (style.backgroundColor)
-      styles.push(`background-color: ${style.backgroundColor}`);
-    if (style.textAlign) styles.push(`text-align: ${style.textAlign}`);
-    if (style.lineHeight) styles.push(`line-height: ${style.lineHeight}`);
-    if (style.fontWeight) styles.push(`font-weight: ${style.fontWeight}`);
-    if (style.fontStyle) styles.push(`font-style: ${style.fontStyle}`);
-    if (style.textDecoration)
-      styles.push(`text-decoration: ${style.textDecoration}`);
-
-    // 处理边距和内边距
-    if (style.margin) {
-      const m = style.margin;
-      styles.push(
-        `margin: ${m.top || 0}px ${m.right || 0}px ${m.bottom || 0}px ${
-          m.left || 0
-        }px`
-      );
-    }
-    if (style.padding) {
-      const p = style.padding;
-      styles.push(
-        `padding: ${p.top || 0}px ${p.right || 0}px ${p.bottom || 0}px ${
-          p.left || 0
-        }px`
-      );
-    }
-
-    return styles.join("; ");
-  }
-
-  /**
-   * HTML转义
-   * @param {string} text - 要转义的文本
-   * @returns {string} 转义后的文本
-   */
-  static escapeHtml(text) {
-    if (typeof text !== "string") return "";
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
   }
 
   /**

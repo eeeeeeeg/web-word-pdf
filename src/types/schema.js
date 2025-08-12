@@ -173,6 +173,13 @@ export function createPage(config = {}) {
     id: generateId(),
     name: config.name || "页面1",
     components: config.components || [],
+    style: config.style || {
+      backgroundColor: "transparent",
+      backgroundImage: "",
+      backgroundSize: "cover", // cover, contain, stretch
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -203,6 +210,7 @@ export const HEADER_FOOTER_TEMPLATES = {
       {
         type: "layout",
         preset: "single",
+        alignment: "center", // 添加布局组件的居中对齐
         columns: [{ width: 100 }],
         children: [
           {

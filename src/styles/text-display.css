@@ -8,9 +8,9 @@
   background: transparent !important;
 }
 
-.text-display * {
+/* .text-display * {
   color: inherit !important;
-}
+} */
 
 .text-display p {
   margin: 0 0 var(--paragraph-spacing, 8px) 0;

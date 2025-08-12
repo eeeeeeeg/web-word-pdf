@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require("uuid");
 const PDFExportService = require("../services/PDFExportService");
 const PandocWordExportService = require("../services/PandocWordExportService");
 const PPTExportService = require("../services/PPTExportService");
+const SchemaToHtmlConverter = require("../utils/schemaToHtml");
 
 const router = express.Router();
 
@@ -15,87 +16,11 @@ const router = express.Router();
  * 将Schema转换为HTML
  */
 function convertSchemaToHTML(schema) {
-  let html = "<html><head><style>";
-
-  // 添加一些基础样式
-  html += `
-    body {
-      font-family: 'Microsoft YaHei', Arial, sans-serif;
-      line-height: 1.6;
-      font-size: 12pt;
-    }
-    .page-break { page-break-before: always; }
-    .text-center { text-align: center; }
-    .text-right { text-align: right; }
-    .highlight { background-color: yellow; }
-    .code {
-      font-family: 'Courier New', monospace;
-      background-color: #f5f5f5;
-      padding: 2px 4px;
-    }
-    img {
-      width: 64px !important;
-      height: 64px !important;
-      object-fit: contain;
-      display: block;
-      margin: 0.5em auto;
-    }
-  `;
-
-  html += "</style></head><body>";
-
-  if (schema.pages) {
-    schema.pages.forEach((page, pageIndex) => {
-      if (pageIndex > 0) {
-        html += '<div class="page-break"></div>';
-      }
-
-      if (page.components && page.components.length > 0) {
-        page.components.forEach((component) => {
-          html += convertComponentToHTML(component);
-        });
-      }
-    });
-  }
-
-  html += "</body></html>";
-  return html;
-}
-
-/**
- * 将组件转换为HTML
- */
-function convertComponentToHTML(component) {
-  if (!component || !component.type) {
-    return "";
-  }
-
-  switch (component.type) {
-    case "text":
-      return `<p>${component.content || ""}</p>`;
-
-    case "image":
-      if (component.src) {
-        return `<img src="${component.src}" alt="${
-          component.alt || "图片"
-        }" />`;
-      } else {
-        return "<p><em>图片未加载</em></p>";
-      }
-
-    case "layout":
-      let layoutHTML = "<div>";
-      if (component.children && component.children.length > 0) {
-        component.children.forEach((child) => {
-          layoutHTML += convertComponentToHTML(child);
-        });
-      }
-      layoutHTML += "</div>";
-      return layoutHTML;
-
-    default:
-      return `<p>${component.content || ""}</p>`;
-  }
+  // 使用统一的转换器，设置为Word环境
+  return SchemaToHtmlConverter.convertToFullHTML(schema, {
+    environment: "word",
+    includeDoctype: true,
+  });
 }
 
 /**

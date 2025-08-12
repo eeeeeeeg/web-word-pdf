@@ -16,14 +16,21 @@
         <div class="page-title-bar" v-if="mode === 'edit'">
           <span class="page-title">{{ page.name }}</span>
           <div class="page-actions">
-            <!-- <button
+            <button
               class="page-action-btn"
               @click="$emit('page-select', pageIndex)"
               :class="{ active: pageIndex === schema.currentPageIndex }"
               title="选择此页面"
             >
               选择
-            </button> -->
+            </button>
+            <button
+              class="page-action-btn style-btn"
+              @click="$emit('page-style-config', pageIndex)"
+              title="页面样式设置"
+            >
+              样式
+            </button>
             <button
               class="page-action-btn copy-btn"
               @click="$emit('page-copy', pageIndex)"
@@ -45,7 +52,7 @@
         <!-- 页面内容 -->
         <div
           class="page"
-          :style="pageStyle"
+          :style="pageStyle(pageIndex)"
           @drop="(e) => handleDrop(e, pageIndex)"
           @dragover="handleDragOver"
           @dragenter="handleDragEnter"
@@ -173,31 +180,97 @@ export default {
       type: String,
       default: "edit",
     },
+    styleUpdateTrigger: {
+      type: Number,
+      default: 0,
+    },
   },
   computed: {
     pageStyle() {
-      const config = this.schema.pageConfig;
-      const size = config.pageSize;
+      // 使用styleUpdateTrigger确保样式变化时重新计算
+      this.styleUpdateTrigger; // 这会让计算属性依赖于触发器
 
-      // 转换尺寸到像素
-      let width, height;
-      if (size.unit === "mm") {
-        width = size.width * 3.78; // 1mm ≈ 3.78px at 96dpi
-        height = size.height * 3.78;
-      } else if (size.unit === "in") {
-        width = size.width * 96; // 1in = 96px at 96dpi
-        height = size.height * 96;
-      } else {
-        width = size.width;
-        height = size.height;
-      }
+      return (pageIndex) => {
+        const config = this.schema.pageConfig;
+        const size = config.pageSize;
+        const page = this.schema.pages[pageIndex];
 
-      return {
-        width: `${width}px`,
-        height: `${height}px`,
-        padding: `${config.margins.top * 3.78}px ${
-          config.margins.right * 3.78
-        }px ${config.margins.bottom * 3.78}px ${config.margins.left * 3.78}px`,
+        // 转换尺寸到像素
+        let width, height;
+        if (size.unit === "mm") {
+          width = size.width * 3.78; // 1mm ≈ 3.78px at 96dpi
+          height = size.height * 3.78;
+        } else if (size.unit === "in") {
+          width = size.width * 96; // 1in = 96px at 96dpi
+          height = size.height * 96;
+        } else {
+          width = size.width;
+          height = size.height;
+        }
+
+        const baseStyle = {
+          width: `${width}px`,
+          height: `${height}px`,
+          padding: `${config.margins.top * 3.78}px ${
+            config.margins.right * 3.78
+          }px ${config.margins.bottom * 3.78}px ${
+            config.margins.left * 3.78
+          }px`,
+          backgroundColor: "white", // 默认白色背景
+        };
+
+        // 添加页面背景样式
+        if (page) {
+          // 确保页面有style属性，如果没有则初始化
+          if (!page.style) {
+            page.style = {
+              backgroundColor: "transparent",
+              backgroundImage: "",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+            };
+          }
+
+          const pageStyle = page.style;
+
+          // 背景色
+          if (pageStyle.backgroundColor) {
+            if (pageStyle.backgroundColor === "transparent") {
+              // 如果设置为透明，则移除背景色
+              delete baseStyle.backgroundColor;
+            } else {
+              // 设置用户指定的背景色
+              baseStyle.backgroundColor = pageStyle.backgroundColor;
+            }
+          }
+
+          // 背景图片
+          if (pageStyle.backgroundImage) {
+            baseStyle.backgroundImage = `url(${pageStyle.backgroundImage})`;
+            baseStyle.backgroundPosition =
+              pageStyle.backgroundPosition || "center";
+            baseStyle.backgroundRepeat =
+              pageStyle.backgroundRepeat || "no-repeat";
+
+            // 背景尺寸模式
+            switch (pageStyle.backgroundSize) {
+              case "cover":
+                baseStyle.backgroundSize = "cover";
+                break;
+              case "contain":
+                baseStyle.backgroundSize = "contain";
+                break;
+              case "stretch":
+                baseStyle.backgroundSize = "100% 100%";
+                break;
+              default:
+                baseStyle.backgroundSize = "cover";
+            }
+          }
+        }
+
+        return baseStyle;
       };
     },
 
@@ -344,7 +417,6 @@ export default {
     },
 
     handlePageClick(event, pageIndex) {
-      pageIndex;
       if (this.mode !== "edit") return;
 
       // 查找最具体的组件
@@ -352,6 +424,9 @@ export default {
 
       if (targetComponent) {
         this.$emit("component-select", targetComponent);
+      } else {
+        // 如果没有点击到组件，则触发页面点击事件
+        this.$emit("page-click", pageIndex, event);
       }
     },
 
@@ -521,6 +596,17 @@ export default {
   border-color: #73d13d;
 }
 
+.page-action-btn.style-btn {
+  background: #722ed1;
+  color: white;
+  border-color: #722ed1;
+}
+
+.page-action-btn.style-btn:hover {
+  background: #9254de;
+  border-color: #9254de;
+}
+
 .page-action-btn.delete-btn {
   background: #ff4d4f;
   color: white;
@@ -533,7 +619,8 @@ export default {
 }
 
 .page {
-  background: white;
+  /* 移除固定的背景色，让JavaScript设置的背景样式生效 */
+  /* background: white; */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   border-radius: 0 0 6px 6px;
   position: relative;
