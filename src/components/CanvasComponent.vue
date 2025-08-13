@@ -261,6 +261,8 @@ export default {
         margin: `${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px`,
         padding: `${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px`,
         minHeight: "60px",
+        backgroundColor: style.backgroundColor || "transparent",
+        borderRadius: style.borderRadius ? `${style.borderRadius}px` : "0px",
       };
 
       // 如果设置了最小高度，应用它
@@ -268,28 +270,32 @@ export default {
         baseStyle.minHeight = `${style.minHeight}px`;
       }
 
-      // 预览模式下去除边框和背景色，但保持高度控制
+      // 预览模式下应用背景色和圆角，但去除边框
       if (this.mode === "preview") {
         return {
           ...baseStyle,
           border: "none",
-          background: "transparent",
           // 在页眉页脚中，限制最大高度以避免溢出
           maxHeight: style.maxHeight ? `${style.maxHeight}px` : undefined,
           overflow: "hidden",
         };
       }
 
-      return baseStyle;
+      // 编辑模式下添加边框
+      return {
+        ...baseStyle,
+        border: "1px dashed #e0e0e0",
+      };
     },
 
     textStyle() {
       const style = this.component.style;
       return {
         margin: `${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px`,
-        // padding: `${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px`,
-        padding: `8px`,
+        padding: `${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px`,
         minHeight: "24px",
+        backgroundColor: style.backgroundColor || "transparent",
+        borderRadius: style.borderRadius ? `${style.borderRadius}px` : "0px",
       };
     },
 

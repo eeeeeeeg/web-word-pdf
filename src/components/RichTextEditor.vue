@@ -233,7 +233,7 @@ export default {
 }
 
 .rich-text-editor {
-  background: white;
+  background: inherit;
 }
 
 /* TinyMCE 编辑器样式优化 */

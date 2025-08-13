@@ -62,11 +62,196 @@
               <span>%</span>
             </div>
           </div>
+
+          <!-- 布局组件背景色设置 -->
+          <div class="form-group">
+            <label>背景色:</label>
+            <div class="background-color-controls">
+              <!-- 透明/有色切换 -->
+              <div class="color-mode-toggle">
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    :value="true"
+                    :checked="isLayoutBackgroundTransparent"
+                    @change="setLayoutBackgroundTransparent(true)"
+                  />
+                  透明
+                </label>
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    :value="false"
+                    :checked="!isLayoutBackgroundTransparent"
+                    @change="setLayoutBackgroundTransparent(false)"
+                  />
+                  有色
+                </label>
+              </div>
+
+              <!-- 颜色选择器（仅在非透明时显示） -->
+              <div
+                v-if="!isLayoutBackgroundTransparent"
+                class="color-input-group"
+              >
+                <input
+                  type="color"
+                  :value="layoutBackgroundColorValue"
+                  @input="updateLayoutBackgroundColor"
+                  class="color-picker"
+                />
+                <input
+                  type="text"
+                  :value="layoutBackgroundColorValue"
+                  @input="updateLayoutBackgroundColorText"
+                  placeholder="#ffffff"
+                  class="color-text"
+                />
+              </div>
+
+              <!-- 透明度预览 -->
+              <div
+                class="background-preview"
+                :style="layoutBackgroundPreviewStyle"
+              >
+                <span class="preview-text">预览</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 圆角设置 -->
+          <div class="form-group">
+            <label>圆角:</label>
+            <input
+              type="number"
+              v-model.number="localComponent.style.borderRadius"
+              @input="updateComponent"
+              min="0"
+              max="50"
+            />
+            <span class="unit">px</span>
+          </div>
         </div>
 
         <!-- 文本组件属性 -->
         <div v-if="component.type === 'text'" class="property-section">
-          <h5>富文本编辑器</h5>
+          <h5>文本样式</h5>
+
+          <!-- 背景色设置 -->
+          <div class="form-group">
+            <label>背景色:</label>
+            <div class="background-color-controls">
+              <!-- 透明/有色切换 -->
+              <div class="color-mode-toggle">
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    :value="true"
+                    :checked="isBackgroundTransparent"
+                    @change="setBackgroundTransparent(true)"
+                  />
+                  透明
+                </label>
+                <label class="radio-label">
+                  <input
+                    type="radio"
+                    :value="false"
+                    :checked="!isBackgroundTransparent"
+                    @change="setBackgroundTransparent(false)"
+                  />
+                  有色
+                </label>
+              </div>
+
+              <!-- 颜色选择器（仅在非透明时显示） -->
+              <div v-if="!isBackgroundTransparent" class="color-input-group">
+                <input
+                  type="color"
+                  :value="backgroundColorValue"
+                  @input="updateBackgroundColor"
+                  class="color-picker"
+                />
+                <input
+                  type="text"
+                  :value="backgroundColorValue"
+                  @input="updateBackgroundColorText"
+                  placeholder="#ffffff"
+                  class="color-text"
+                />
+              </div>
+
+              <!-- 透明度预览 -->
+              <div class="background-preview" :style="backgroundPreviewStyle">
+                <span class="preview-text">预览</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 内边距设置 -->
+          <div class="form-group">
+            <label>内边距:</label>
+            <div class="spacing-controls">
+              <div class="spacing-row">
+                <label class="spacing-label">上:</label>
+                <input
+                  type="number"
+                  v-model.number="localComponent.style.padding.top"
+                  @input="updateComponent"
+                  min="0"
+                  max="100"
+                  class="spacing-input"
+                />
+              </div>
+              <div class="spacing-row">
+                <label class="spacing-label">下:</label>
+                <input
+                  type="number"
+                  v-model.number="localComponent.style.padding.bottom"
+                  @input="updateComponent"
+                  min="0"
+                  max="100"
+                  class="spacing-input"
+                />
+              </div>
+              <div class="spacing-row">
+                <label class="spacing-label">左:</label>
+                <input
+                  type="number"
+                  v-model.number="localComponent.style.padding.left"
+                  @input="updateComponent"
+                  min="0"
+                  max="100"
+                  class="spacing-input"
+                />
+              </div>
+              <div class="spacing-row">
+                <label class="spacing-label">右:</label>
+                <input
+                  type="number"
+                  v-model.number="localComponent.style.padding.right"
+                  @input="updateComponent"
+                  min="0"
+                  max="100"
+                  class="spacing-input"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 圆角设置 -->
+          <div class="form-group">
+            <label>圆角:</label>
+            <input
+              type="number"
+              v-model.number="localComponent.style.borderRadius"
+              @input="updateComponent"
+              min="0"
+              max="50"
+              placeholder="0"
+            />
+            <span class="unit">px</span>
+          </div>
+
           <div class="form-group">
             <label>使用说明:</label>
             <p class="help-text">
@@ -244,12 +429,110 @@ export default {
       localComponent: null,
     };
   },
+  computed: {
+    isBackgroundTransparent() {
+      if (!this.localComponent || !this.localComponent.style) return true;
+      const bg = this.localComponent.style.backgroundColor;
+      return (
+        !bg ||
+        bg === "transparent" ||
+        bg === "rgba(0,0,0,0)" ||
+        bg === "rgba(0, 0, 0, 0)"
+      );
+    },
+
+    backgroundColorValue() {
+      if (!this.localComponent || !this.localComponent.style) return "#ffffff";
+      const bg = this.localComponent.style.backgroundColor;
+      if (
+        !bg ||
+        bg === "transparent" ||
+        bg.includes("rgba(0,0,0,0)") ||
+        bg.includes("rgba(0, 0, 0, 0)")
+      ) {
+        return "#ffffff";
+      }
+      return bg;
+    },
+
+    backgroundPreviewStyle() {
+      if (!this.localComponent || !this.localComponent.style) return {};
+      return {
+        backgroundColor:
+          this.localComponent.style.backgroundColor || "transparent",
+        border: "1px solid #ddd",
+        borderRadius: "4px",
+        padding: "4px 8px",
+        fontSize: "12px",
+        color: this.isBackgroundTransparent ? "#666" : "#333",
+        backgroundImage: this.isBackgroundTransparent
+          ? "linear-gradient(45deg, #f0f0f0 25%, transparent 25%), linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #f0f0f0 75%), linear-gradient(-45deg, transparent 75%, #f0f0f0 75%)"
+          : "none",
+        backgroundSize: this.isBackgroundTransparent ? "8px 8px" : "auto",
+        backgroundPosition: this.isBackgroundTransparent
+          ? "0 0, 0 4px, 4px -4px, -4px 0px"
+          : "auto",
+      };
+    },
+
+    // 布局组件背景色相关计算属性
+    isLayoutBackgroundTransparent() {
+      if (!this.localComponent || !this.localComponent.style) return true;
+      const bg = this.localComponent.style.backgroundColor;
+      return (
+        !bg ||
+        bg === "transparent" ||
+        bg === "rgba(0,0,0,0)" ||
+        bg === "rgba(0, 0, 0, 0)"
+      );
+    },
+
+    layoutBackgroundColorValue() {
+      if (!this.localComponent || !this.localComponent.style) return "#ffffff";
+      const bg = this.localComponent.style.backgroundColor;
+      if (
+        !bg ||
+        bg === "transparent" ||
+        bg.includes("rgba(0,0,0,0)") ||
+        bg.includes("rgba(0, 0, 0, 0)")
+      ) {
+        return "#ffffff";
+      }
+      return bg;
+    },
+
+    layoutBackgroundPreviewStyle() {
+      if (!this.localComponent || !this.localComponent.style) return {};
+      return {
+        backgroundColor:
+          this.localComponent.style.backgroundColor || "transparent",
+        border: "1px solid #ddd",
+        borderRadius: "4px",
+        padding: "4px 8px",
+        fontSize: "12px",
+        color: this.isLayoutBackgroundTransparent ? "#666" : "#333",
+        backgroundImage: this.isLayoutBackgroundTransparent
+          ? "linear-gradient(45deg, #f0f0f0 25%, transparent 25%), linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #f0f0f0 75%), linear-gradient(-45deg, transparent 75%, #f0f0f0 75%)"
+          : "none",
+        backgroundSize: this.isLayoutBackgroundTransparent ? "8px 8px" : "auto",
+        backgroundPosition: this.isLayoutBackgroundTransparent
+          ? "0 0, 0 4px, 4px -4px, -4px 0px"
+          : "auto",
+      };
+    },
+  },
   watch: {
     component: {
       handler(newComponent) {
         console.log("PropertyPanel 接收到组件:", newComponent);
         if (newComponent) {
           this.localComponent = JSON.parse(JSON.stringify(newComponent));
+          // 确保组件有完整的样式属性
+          if (this.localComponent.type === "text") {
+            this.ensureTextComponentStyles();
+          } else if (this.localComponent.type === "layout") {
+            this.ensureLayoutComponentStyles();
+          }
         } else {
           this.localComponent = null;
         }
@@ -271,6 +554,146 @@ export default {
     updateComponent() {
       if (this.localComponent) {
         this.$emit("update", this.localComponent);
+      }
+    },
+
+    clearBackgroundColor() {
+      if (this.localComponent && this.localComponent.style) {
+        this.localComponent.style.backgroundColor = "transparent";
+        this.updateComponent();
+      }
+    },
+
+    setBackgroundTransparent(isTransparent) {
+      if (!this.localComponent || !this.localComponent.style) return;
+
+      if (isTransparent) {
+        this.localComponent.style.backgroundColor = "transparent";
+      } else {
+        // 如果当前是透明的，设置为白色
+        if (this.isBackgroundTransparent) {
+          this.localComponent.style.backgroundColor = "#ffffff";
+        }
+      }
+      this.updateComponent();
+    },
+
+    updateBackgroundColor(event) {
+      if (!this.localComponent || !this.localComponent.style) return;
+      this.localComponent.style.backgroundColor = event.target.value;
+      this.updateComponent();
+    },
+
+    updateBackgroundColorText(event) {
+      if (!this.localComponent || !this.localComponent.style) return;
+      const value = event.target.value.trim();
+      if (value) {
+        this.localComponent.style.backgroundColor = value;
+        this.updateComponent();
+      }
+    },
+
+    // 布局组件背景色处理方法
+    setLayoutBackgroundTransparent(isTransparent) {
+      if (!this.localComponent || !this.localComponent.style) return;
+
+      if (isTransparent) {
+        this.localComponent.style.backgroundColor = "transparent";
+      } else {
+        // 如果当前是透明的，设置为白色
+        if (this.isLayoutBackgroundTransparent) {
+          this.localComponent.style.backgroundColor = "#ffffff";
+        }
+      }
+      this.updateComponent();
+    },
+
+    updateLayoutBackgroundColor(event) {
+      if (!this.localComponent || !this.localComponent.style) return;
+      this.localComponent.style.backgroundColor = event.target.value;
+      this.updateComponent();
+    },
+
+    updateLayoutBackgroundColorText(event) {
+      if (!this.localComponent || !this.localComponent.style) return;
+      const value = event.target.value.trim();
+      if (value) {
+        this.localComponent.style.backgroundColor = value;
+        this.updateComponent();
+      }
+    },
+
+    ensureTextComponentStyles() {
+      if (!this.localComponent || this.localComponent.type !== "text") return;
+
+      // 确保样式对象存在
+      if (!this.localComponent.style) {
+        this.localComponent.style = {};
+      }
+
+      const style = this.localComponent.style;
+
+      // 确保背景色属性存在
+      if (style.backgroundColor === undefined) {
+        style.backgroundColor = "transparent";
+      }
+
+      // 确保圆角属性存在
+      if (style.borderRadius === undefined) {
+        style.borderRadius = 0;
+      }
+
+      // 确保内边距属性存在
+      if (!style.padding) {
+        style.padding = { top: 8, bottom: 8, left: 8, right: 8 };
+      } else {
+        // 确保内边距的所有方向都存在
+        if (style.padding.top === undefined) style.padding.top = 8;
+        if (style.padding.bottom === undefined) style.padding.bottom = 8;
+        if (style.padding.left === undefined) style.padding.left = 8;
+        if (style.padding.right === undefined) style.padding.right = 8;
+      }
+
+      // 确保外边距属性存在
+      if (!style.margin) {
+        style.margin = { top: 0, bottom: 0, left: 0, right: 0 };
+      }
+    },
+
+    ensureLayoutComponentStyles() {
+      if (!this.localComponent || this.localComponent.type !== "layout") return;
+
+      // 确保样式对象存在
+      if (!this.localComponent.style) {
+        this.localComponent.style = {};
+      }
+
+      const style = this.localComponent.style;
+
+      // 确保背景色属性存在
+      if (style.backgroundColor === undefined) {
+        style.backgroundColor = "transparent";
+      }
+
+      // 确保圆角属性存在
+      if (style.borderRadius === undefined) {
+        style.borderRadius = 0;
+      }
+
+      // 确保内边距属性存在
+      if (!style.padding) {
+        style.padding = { top: 8, bottom: 8, left: 8, right: 8 };
+      } else {
+        // 确保内边距的所有方向都存在
+        if (style.padding.top === undefined) style.padding.top = 8;
+        if (style.padding.bottom === undefined) style.padding.bottom = 8;
+        if (style.padding.left === undefined) style.padding.left = 8;
+        if (style.padding.right === undefined) style.padding.right = 8;
+      }
+
+      // 确保外边距属性存在
+      if (!style.margin) {
+        style.margin = { top: 0, bottom: 0, left: 0, right: 0 };
       }
     },
 
@@ -536,5 +959,117 @@ export default {
 
 .btn-danger:hover {
   background: #ff7875;
+}
+
+/* 背景色控件样式 */
+.background-color-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.color-mode-toggle {
+  display: flex;
+  gap: 16px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+  margin: 0;
+}
+
+/* 颜色输入组样式 */
+.color-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.background-preview {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.color-picker {
+  width: 40px;
+  height: 32px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.color-text {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.btn-clear {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f5f5f5;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.btn-clear:hover {
+  background: #e8e8e8;
+  color: #333;
+}
+
+/* 间距控件样式 */
+.spacing-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.spacing-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.spacing-label {
+  font-size: 12px;
+  color: #666;
+  min-width: 20px;
+}
+
+.spacing-input {
+  width: 50px;
+  padding: 4px 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.unit {
+  font-size: 12px;
+  color: #666;
+  margin-left: 4px;
 }
 </style>

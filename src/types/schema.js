@@ -115,6 +115,11 @@ export function createComponent(type, options = {}) {
         columns: options.columns || LAYOUT_PRESETS.SINGLE_COLUMN.columns,
         alignment: options.alignment || "left",
         children: options.children || [],
+        style: {
+          ...baseComponent.style,
+          backgroundColor: options.backgroundColor || "transparent",
+          borderRadius: options.borderRadius || 0,
+        },
       };
 
     case COMPONENT_TYPES.TEXT:
@@ -131,6 +136,8 @@ export function createComponent(type, options = {}) {
           fontWeight: options.fontWeight || "normal",
           fontStyle: options.fontStyle || "normal",
           textDecoration: options.textDecoration || "none",
+          backgroundColor: options.backgroundColor || "transparent",
+          borderRadius: options.borderRadius || 0,
         },
       };
 

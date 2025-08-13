@@ -8,12 +8,184 @@
  */
 export class SchemaToHtmlConverter {
   /**
+   * 格式化背景图片URL，避免重复包装url()
+   * @param {string} backgroundImage - 背景图片URL
+   * @returns {string} 格式化后的背景图片CSS值
+   */
+  static formatBackgroundImage(backgroundImage) {
+    if (!backgroundImage) return "";
+
+    // 检查是否已经包含url()包装
+    return backgroundImage.startsWith("url(")
+      ? backgroundImage
+      : `url(${backgroundImage})`;
+  }
+
+  /**
+   * 将HTTP图片URL转换为base64
+   * @param {string} imageUrl - 图片URL
+   * @returns {Promise<string>} base64格式的图片数据
+   */
+  static async convertImageToBase64(imageUrl) {
+    try {
+      // 检查是否为HTTP/HTTPS URL
+      if (
+        !imageUrl ||
+        (!imageUrl.startsWith("http://") && !imageUrl.startsWith("https://"))
+      ) {
+        return imageUrl; // 返回原始URL
+      }
+
+      // 在浏览器环境中使用fetch
+      if (typeof window !== "undefined") {
+        const response = await fetch(imageUrl);
+        if (!response.ok) {
+          console.warn(`Failed to fetch image: ${imageUrl}`);
+          return imageUrl;
+        }
+
+        const blob = await response.blob();
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      // 在Node.js环境中使用axios或其他HTTP客户端
+      // 这里返回原始URL，因为服务端转换需要额外的依赖
+      console.warn(
+        "Image to base64 conversion not supported in Node.js environment"
+      );
+      return imageUrl;
+    } catch (error) {
+      console.error("Error converting image to base64:", error);
+      return imageUrl; // 转换失败时返回原始URL
+    }
+  }
+
+  /**
+   * 批量转换schema中的所有图片为base64
+   * @param {Object} schema - 页面Schema数据
+   * @returns {Promise<Object>} 转换后的schema
+   */
+  static async convertSchemaImagesToBase64(schema) {
+    if (!schema || !schema.pages) {
+      return schema;
+    }
+
+    const convertedSchema = JSON.parse(JSON.stringify(schema)); // 深拷贝
+
+    // 递归处理组件中的图片
+    const processComponent = async (component) => {
+      // 处理图片组件
+      if (component.type === "image" && component.content) {
+        component.content = await this.convertImageToBase64(component.content);
+      }
+
+      // 处理背景图片
+      if (component.style && component.style.backgroundImage) {
+        // 提取URL（去掉url()包装）
+        const urlMatch = component.style.backgroundImage.match(
+          /url\(['"]?([^'"]+)['"]?\)/
+        );
+        if (urlMatch && urlMatch[1]) {
+          const base64Image = await this.convertImageToBase64(urlMatch[1]);
+          component.style.backgroundImage = `url(${base64Image})`;
+        }
+      }
+
+      // 递归处理子组件
+      if (component.children && Array.isArray(component.children)) {
+        for (const child of component.children) {
+          await processComponent(child);
+        }
+      }
+    };
+
+    // 处理所有页面
+    for (const page of convertedSchema.pages) {
+      // 处理页面背景图片
+      if (page.style && page.style.backgroundImage) {
+        const urlMatch = page.style.backgroundImage.match(
+          /url\(['"]?([^'"]+)['"]?\)/
+        );
+        if (urlMatch && urlMatch[1]) {
+          const base64Image = await this.convertImageToBase64(urlMatch[1]);
+          page.style.backgroundImage = `url(${base64Image})`;
+        }
+      }
+
+      // 处理页面组件
+      if (page.components) {
+        for (const component of page.components) {
+          await processComponent(component);
+        }
+      }
+    }
+
+    // 处理页眉页脚
+    if (convertedSchema.pageConfig) {
+      // 处理页眉
+      if (
+        convertedSchema.pageConfig.header &&
+        convertedSchema.pageConfig.header.components
+      ) {
+        for (const component of convertedSchema.pageConfig.header.components) {
+          await processComponent(component);
+        }
+      }
+
+      // 处理页脚
+      if (
+        convertedSchema.pageConfig.footer &&
+        convertedSchema.pageConfig.footer.components
+      ) {
+        for (const component of convertedSchema.pageConfig.footer.components) {
+          await processComponent(component);
+        }
+      }
+    }
+
+    return convertedSchema;
+  }
+  /**
    * 将完整的Schema转换为HTML文档
+   * @param {Object} schema - 页面Schema数据
+   * @param {Object} options - 转换选项
+   * @returns {string|Promise<string>} 完整的HTML文档
+   */
+  static convertToFullHTML(schema, options = {}) {
+    // 如果启用了图片转base64，返回Promise
+    if (options.convertImagesToBase64) {
+      return this.convertToFullHTMLAsync(schema, options);
+    }
+
+    // 否则返回同步结果
+    return this.convertToFullHTMLSync(schema, options);
+  }
+
+  /**
+   * 异步转换Schema为HTML（支持图片转base64）
+   * @param {Object} schema - 页面Schema数据
+   * @param {Object} options - 转换选项
+   * @returns {Promise<string>} 完整的HTML文档
+   */
+  static async convertToFullHTMLAsync(schema, options = {}) {
+    // 先转换图片为base64
+    const convertedSchema = await this.convertSchemaImagesToBase64(schema);
+
+    // 然后进行正常的HTML转换
+    return this.convertToFullHTMLSync(convertedSchema, options);
+  }
+
+  /**
+   * 同步转换Schema为HTML
    * @param {Object} schema - 页面Schema数据
    * @param {Object} options - 转换选项
    * @returns {string} 完整的HTML文档
    */
-  static convertToFullHTML(schema, options = {}) {
+  static convertToFullHTMLSync(schema, options = {}) {
     if (!schema || !schema.pages) {
       throw new Error("无效的Schema数据");
     }
@@ -162,7 +334,6 @@ export class SchemaToHtmlConverter {
 
         .page-content {
             position: relative;
-            height: 100%;
             padding-top: ${
               pageConfig.header?.enabled
                 ? Math.round((pageConfig.header.height || 15) * 3.78 * 10) / 10
@@ -189,13 +360,24 @@ export class SchemaToHtmlConverter {
 
         .layout-component {
             display: flex;
+            flex-direction: row;
             width: 100%;
-            height: 100%;
         }
 
         .layout-column {
             position: relative;
             box-sizing: border-box;
+        }
+
+        /* 文本显示样式 */
+        .text-display h1,
+        .text-display h2,
+        .text-display h3,
+        .text-display h4,
+        .text-display h5,
+        .text-display h6 {
+            margin: 8px 0;
+            color: inherit !important;
         }
 
         .page-break {
@@ -223,6 +405,24 @@ export class SchemaToHtmlConverter {
               body { padding: 0; }
               .page { margin: 0; box-shadow: none; page-break-after: always; }
               .page-break { page-break-before: always; }
+            }
+            /* 确保背景图片在PDF中正确显示 */
+            * {
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            /* 组件间距优化 */
+            .layout-component, .text-component, .image-component {
+              margin-bottom: 10px;
+            }
+            /* 确保PDF中flex布局正常工作 */
+            .layout-component {
+              display: flex !important;
+              flex-direction: row !important;
+            }
+            .layout-column {
+              flex-shrink: 0 !important;
             }
           `,
         };
@@ -360,7 +560,9 @@ export class SchemaToHtmlConverter {
 
     // 背景图片
     if (style.backgroundImage) {
-      backgroundStyles.push(`background-image: url(${style.backgroundImage})`);
+      backgroundStyles.push(
+        `background-image: ${this.formatBackgroundImage(style.backgroundImage)}`
+      );
       backgroundStyles.push(
         `background-position: ${style.backgroundPosition || "center"}`
       );
@@ -568,23 +770,38 @@ export class SchemaToHtmlConverter {
       component,
       isHeaderFooter
     );
-
-    if (component.layoutType === "grid" && component.columns) {
-      // 网格布局
+    console.log("generateLayoutHTML :", component);
+    if (component.type === "layout" && component.columns) {
+      // 网格布局 - 确保列按正确顺序生成
       const columnsHTML = component.columns
         .map((column, index) => {
           const columnStyle = this.buildLayoutColumnStyle(
             column,
             isHeaderFooter
           );
+          // 获取属于当前列的子组件，并按添加顺序排序
           const children = component.children
-            ? component.children.filter((child) => child.columnIndex === index)
+            ? component.children
+                .filter((child) => child.columnIndex === index)
+                .sort((a, b) => {
+                  // 如果有order属性，按order排序，否则保持原顺序
+                  const orderA = a.order || 0;
+                  const orderB = b.order || 0;
+                  return orderA - orderB;
+                })
             : [];
+
           const childrenHTML = children
             .map((child) => this.generateComponentHTML(child, isHeaderFooter))
             .join("\n");
 
-          return `<div class="layout-column" style="${columnStyle}">${childrenHTML}</div>`;
+          // 添加调试信息（可选）
+          const debugInfo =
+            process.env.NODE_ENV === "development"
+              ? `<!-- 列${index}: columnIndex=${index}, 子组件数=${children.length} -->`
+              : "";
+
+          return `${debugInfo}<div class="layout-column" style="${columnStyle}" data-column-index="${index}">${childrenHTML}</div>`;
         })
         .join("\n");
 
@@ -619,7 +836,7 @@ export class SchemaToHtmlConverter {
 
     return `
       <div class="text-component" style="${textStyle}">
-        <div class="text-content" style="${contentStyle}">
+        <div class="text-content text-display" style="${contentStyle}">
           ${content}
         </div>
       </div>
@@ -692,11 +909,23 @@ export class SchemaToHtmlConverter {
       width: 100%;
     `;
 
+    // 检查是否勾选了保持纵横比
+    const maintainAspectRatio =
+      component.maintainAspectRatio || component.keepAspectRatio;
+
     // 检查是否设置了定高模式
     const useFixedHeight = component.fixedHeight;
     let imageStyle;
 
-    if (useFixedHeight) {
+    if (maintainAspectRatio) {
+      // 保持纵横比模式：高度设置为auto，宽度固定
+      imageStyle = `
+        width: ${style.width}px;
+        height: auto;
+        max-width: ${style.width}px;
+        object-fit: contain;
+      `;
+    } else if (useFixedHeight) {
       // 定高模式：设置固定高度，宽度自动，保持纵横比
       imageStyle = `
         height: ${style.height}px;
@@ -738,13 +967,14 @@ export class SchemaToHtmlConverter {
   static buildTextContainerStyle(style, isHeaderFooter = false) {
     const styles = [];
 
-    // 位置和尺寸
+    // 文本组件统一使用相对定位，与编辑时保持一致
     if (!isHeaderFooter) {
-      if (style.left !== undefined) styles.push(`left: ${style.left}px`);
-      if (style.top !== undefined) styles.push(`top: ${style.top}px`);
+      // 普通页面中的文本组件使用相对定位
       if (style.width !== undefined) styles.push(`width: ${style.width}px`);
       if (style.height !== undefined) styles.push(`height: ${style.height}px`);
-      styles.push("position: absolute");
+      styles.push("position: relative");
+
+      // 不使用left/top定位，而是通过margin来控制位置
     } else {
       // 页眉页脚组件使用相对定位
       if (style.width !== undefined) styles.push(`width: ${style.width}px`);
@@ -781,7 +1011,9 @@ export class SchemaToHtmlConverter {
     if (style.backgroundColor)
       styles.push(`background-color: ${style.backgroundColor}`);
     if (style.backgroundImage) {
-      styles.push(`background-image: url(${style.backgroundImage})`);
+      styles.push(
+        `background-image: ${this.formatBackgroundImage(style.backgroundImage)}`
+      );
       styles.push(
         `background-position: ${style.backgroundPosition || "center"}`
       );
@@ -896,7 +1128,9 @@ export class SchemaToHtmlConverter {
     if (style.backgroundColor)
       styles.push(`background-color: ${style.backgroundColor}`);
     if (style.backgroundImage) {
-      styles.push(`background-image: url(${style.backgroundImage})`);
+      styles.push(
+        `background-image: ${this.formatBackgroundImage(style.backgroundImage)}`
+      );
       styles.push(
         `background-position: ${style.backgroundPosition || "center"}`
       );
@@ -940,12 +1174,12 @@ export class SchemaToHtmlConverter {
   static buildImageContainerStyle(style, alignment = "left") {
     const styles = [];
 
-    // 位置和尺寸
-    if (style.left !== undefined) styles.push(`left: ${style.left}px`);
-    if (style.top !== undefined) styles.push(`top: ${style.top}px`);
-    if (style.width !== undefined) styles.push(`width: ${style.width}px`);
-    if (style.height !== undefined) styles.push(`height: ${style.height}px`);
-    styles.push("position: absolute");
+    // 图片组件统一使用相对定位，与编辑时保持一致
+    // if (style.width !== undefined) styles.push(`width: ${style.width}px`);
+    // if (style.height !== undefined) styles.push(`height: ${style.height}px`);
+    styles.push("position: relative");
+
+    // 不使用left/top定位，而是通过margin来控制位置
 
     // 基础样式
     styles.push("box-sizing: border-box");
@@ -968,7 +1202,9 @@ export class SchemaToHtmlConverter {
     if (style.backgroundColor)
       styles.push(`background-color: ${style.backgroundColor}`);
     if (style.backgroundImage) {
-      styles.push(`background-image: url(${style.backgroundImage})`);
+      styles.push(
+        `background-image: ${this.formatBackgroundImage(style.backgroundImage)}`
+      );
       styles.push(
         `background-position: ${style.backgroundPosition || "center"}`
       );
@@ -1027,10 +1263,19 @@ export class SchemaToHtmlConverter {
     const style = component.style || {};
     const styles = [];
 
+    // 检查是否勾选了保持纵横比
+    const maintainAspectRatio =
+      component.maintainAspectRatio || component.keepAspectRatio;
+
     // 检查是否设置了定高模式
     const useFixedHeight = component.fixedHeight;
 
-    if (useFixedHeight) {
+    if (maintainAspectRatio) {
+      // 保持纵横比模式：高度设置为auto，宽度固定
+      styles.push(`width: ${style.width}px`);
+      styles.push("height: auto");
+      styles.push(`max-width: ${style.width}px`);
+    } else if (useFixedHeight) {
       // 定高模式：设置固定高度，宽度自动，保持纵横比
       styles.push(`height: ${style.height}px`);
       styles.push("width: auto");
@@ -1069,13 +1314,15 @@ export class SchemaToHtmlConverter {
   static buildLayoutContainerStyle(style, component, isHeaderFooter = false) {
     const styles = [];
 
-    // 位置和尺寸
+    // 布局组件统一使用相对定位，与编辑时保持一致
     if (!isHeaderFooter) {
-      if (style.left !== undefined) styles.push(`left: ${style.left}px`);
-      if (style.top !== undefined) styles.push(`top: ${style.top}px`);
+      // 普通页面中的布局组件使用相对定位
       if (style.width !== undefined) styles.push(`width: ${style.width}px`);
       if (style.height !== undefined) styles.push(`height: ${style.height}px`);
-      styles.push("position: absolute");
+      styles.push("position: relative");
+
+      // 不使用left/top定位，而是通过margin来控制位置
+      // 这样与编辑时的布局方式保持一致
     } else {
       // 页眉页脚组件使用相对定位
       if (style.width !== undefined) styles.push(`width: ${style.width}px`);
@@ -1086,6 +1333,7 @@ export class SchemaToHtmlConverter {
     // 基础布局样式
     styles.push("box-sizing: border-box");
     styles.push("display: flex");
+    styles.push("flex-direction: row"); // 明确设置为水平布局
     styles.push("align-items: stretch");
 
     // 对齐方式 - 基于component.alignment
@@ -1135,7 +1383,9 @@ export class SchemaToHtmlConverter {
     if (style.backgroundColor)
       styles.push(`background-color: ${style.backgroundColor}`);
     if (style.backgroundImage) {
-      styles.push(`background-image: url(${style.backgroundImage})`);
+      styles.push(
+        `background-image: ${this.formatBackgroundImage(style.backgroundImage)}`
+      );
       styles.push(
         `background-position: ${style.backgroundPosition || "center"}`
       );
@@ -1165,6 +1415,8 @@ export class SchemaToHtmlConverter {
    * @returns {string} 样式字符串
    */
   static buildLayoutColumnStyle(column, isHeaderFooter = false) {
+    console.log("buildLayoutColumnStyle :", column);
+
     const styles = [];
 
     // 列宽度
