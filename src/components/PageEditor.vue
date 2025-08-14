@@ -80,10 +80,14 @@
         <div class="export-dropdown">
           <button class="btn" @click="toggleExportMenu">导出 ▼</button>
           <div v-if="showExportMenu" class="export-menu">
-            <button @click="exportAsImage">导出为图片</button>
+            <button @click="exportAsImage" :disabled="isExporting">
+              导出为图片
+            </button>
             <!-- <button @click="exportAsWord">导出为 Word</button> -->
-            <button @click="exportAsHTML">导出为 PDF</button>
-            <button @click="printPage">打印</button>
+            <button @click="exportAsHTML" :disabled="isExporting">
+              {{ isExporting ? "📄 导出中..." : "导出为 PDF" }}
+            </button>
+            <button @click="printPage" :disabled="isExporting">打印</button>
           </div>
         </div>
       </div>
@@ -196,6 +200,15 @@
       @update-realtime="handlePageStyleUpdateRealtime"
       @close="showPageStyleConfig = false"
     />
+
+    <!-- 导出加载遮罩 -->
+    <div v-if="isExporting" class="export-loading-overlay">
+      <div class="export-loading-content">
+        <div class="export-loading-spinner"></div>
+        <div class="export-loading-text">正在导出，请稍候...</div>
+        <div class="export-loading-tip">请不要关闭页面</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -274,6 +287,8 @@ export default {
       draftAutoSaveManager: null,
       currentDraftId: null,
       draftAutoSaveEnabled: true,
+      // 导出状态
+      isExporting: false,
     };
   },
 
@@ -954,7 +969,11 @@ export default {
     },
 
     async exportAsImage() {
+      if (this.isExporting) return;
+
       this.showExportMenu = false;
+      this.isExporting = true;
+
       try {
         const canvasElement = this.$el.querySelector(".page");
         if (!canvasElement) {
@@ -967,9 +986,12 @@ export default {
           quality: 2,
         });
 
-        alert("图片导出成功！");
+        console.log("图片导出成功");
       } catch (error) {
+        console.error("图片导出失败:", error);
         alert("图片导出失败: " + error.message);
+      } finally {
+        this.isExporting = false;
       }
     },
 
@@ -984,8 +1006,12 @@ export default {
       }
     },
 
-    exportAsHTML() {
+    async exportAsHTML() {
+      if (this.isExporting) return;
+
       this.showExportMenu = false;
+      this.isExporting = true;
+
       try {
         // 从页面配置中获取参数
         const pageConfig = this.pageSchema.pageConfig;
@@ -1053,20 +1079,27 @@ export default {
         // 移除format选项，使用自定义尺寸
         delete exportOptions.format;
 
-        exportPDF(htmlContent, exportOptions);
+        await exportPDF(htmlContent, exportOptions);
         // 可选：同时导出HTML文件用于调试
         // this.downloadHTML(
         //   htmlContent,
         //   `页面设计_${new Date().toLocaleDateString()}.html`
         // );
-        alert("HTML 导出成功！");
+        console.log("PDF 导出成功");
       } catch (error) {
-        alert("HTML 导出失败: " + error.message);
+        console.error("PDF导出失败:", error);
+        alert("PDF 导出失败: " + error.message);
+      } finally {
+        this.isExporting = false;
       }
     },
 
     printPage() {
+      if (this.isExporting) return;
+
       this.showExportMenu = false;
+      this.isExporting = true;
+
       try {
         const canvasElement = this.$el.querySelector(".page");
         if (!canvasElement) {
@@ -1076,8 +1109,12 @@ export default {
         PrintManager.printPage(canvasElement, {
           title: "页面设计打印",
         });
+        console.log("打印任务已发送");
       } catch (error) {
+        console.error("打印失败:", error);
         alert("打印失败: " + error.message);
+      } finally {
+        this.isExporting = false;
       }
     },
 
@@ -2838,6 +2875,74 @@ export default {
 
 .export-menu button:active {
   background: #e6f7ff;
+}
+
+.export-menu button:disabled {
+  background: #f5f5f5;
+  color: #bfbfbf;
+  cursor: not-allowed;
+}
+
+.export-menu button:disabled:hover {
+  background: #f5f5f5;
+  color: #bfbfbf;
+}
+
+/* 导出加载遮罩样式 */
+.export-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.export-loading-content {
+  background: white;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  min-width: 280px;
+  max-width: 400px;
+}
+
+.export-loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #1890ff;
+  border-radius: 50%;
+  animation: export-spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes export-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.export-loading-text {
+  font-size: 18px;
+  font-weight: 500;
+  color: #262626;
+  margin-bottom: 8px;
+}
+
+.export-loading-tip {
+  font-size: 14px;
+  color: #8c8c8c;
+  line-height: 1.5;
 }
 
 /* 🎯 内容处理模式指示器样式 */
