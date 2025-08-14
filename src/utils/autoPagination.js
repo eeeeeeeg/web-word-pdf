@@ -4,10 +4,7 @@
  */
 
 import { calculateAvailableContentHeight } from "./pageCalculator.js";
-import {
-  measurePageComponents,
-  measureLayoutComponent,
-} from "./componentMeasurer.js";
+import { measureLayoutComponent } from "./componentMeasurer.js";
 import { createPage } from "../types/schema.js";
 
 /**
@@ -333,9 +330,25 @@ function applyPaginationResult(originalSchema, paginationResult) {
     updatedAt: new Date().toISOString(),
   };
 
+  // 获取原始页面的样式配置作为模板
+  const originalPageStyles = originalSchema.pages.map(
+    (page) => page.style || {}
+  );
+  const defaultPageStyle = originalPageStyles[0] || {
+    backgroundColor: "transparent",
+    backgroundImage: "",
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+  };
+
   paginationResult.pages.forEach((pageComponents, index) => {
+    // 尝试使用对应原始页面的样式，如果没有则使用第一个页面的样式
+    const pageStyle = originalPageStyles[index] || defaultPageStyle;
+
     const page = createPage({
       name: `页面 ${index + 1}`,
+      style: { ...pageStyle }, // 保留原始页面的样式配置
       components: pageComponents.map((comp) => {
         // 移除分页算法添加的临时属性
         // eslint-disable-next-line no-unused-vars
@@ -348,9 +361,9 @@ function applyPaginationResult(originalSchema, paginationResult) {
     newSchema.pages.push(page);
   });
 
-  // 如果没有页面，创建一个空页面
+  // 如果没有页面，创建一个空页面（使用默认样式）
   if (newSchema.pages.length === 0) {
-    newSchema.pages.push(createPage());
+    newSchema.pages.push(createPage({ style: { ...defaultPageStyle } }));
   }
 
   return newSchema;
@@ -358,6 +371,8 @@ function applyPaginationResult(originalSchema, paginationResult) {
 
 /**
  * 检查是否需要重新分页
+ * 🎯 修改逻辑：只有当独立组件超出布局高度时才进行分页
+ * 如果是组件在当前页面的部分超出了高度，则超出部分不展示，不进行分页警告
  * @param {Object} pageSchema - 页面架构
  * @param {Object} config - 配置
  * @returns {Promise<boolean>} 是否需要重新分页
@@ -376,13 +391,21 @@ export async function shouldRepaginate(pageSchema, config = PAGINATION_CONFIG) {
 
       if (layoutComponents.length === 0) continue;
 
-      const measurementResult = await measurePageComponents(layoutComponents);
+      // 🎯 检查每个独立的布局组件是否超出高度
+      for (const component of layoutComponents) {
+        const measurementResult = await measureLayoutComponent(component);
 
-      if (measurementResult.totalHeight > effectiveHeight) {
-        return true;
+        // 只有当单个独立组件的高度超出页面高度时才需要分页
+        if (measurementResult.height > effectiveHeight) {
+          console.log(
+            `🔄 检测到独立组件超出高度: ${component.id}, 高度: ${measurementResult.height}px, 可用高度: ${effectiveHeight}px`
+          );
+          return true;
+        }
       }
     }
 
+    console.log(`✅ 所有独立组件都在可用高度范围内，无需分页`);
     return false;
   } catch (error) {
     console.warn("检查分页需求时出错:", error);

@@ -17,6 +17,8 @@ export class PDFExportManager {
       orientation = "portrait",
       margin = 10,
       quality = 1,
+      width,
+      height,
     } = options;
 
     try {
@@ -29,12 +31,22 @@ export class PDFExportManager {
         logging: false,
       });
 
-      // 创建 PDF 文档
-      const pdf = new jsPDF({
+      // 创建 PDF 文档 - 支持自定义尺寸
+      let pdfConfig = {
         orientation: orientation,
         unit: "mm",
-        format: format,
-      });
+      };
+
+      if (format === "custom" && width && height) {
+        // 使用自定义尺寸
+        pdfConfig.format = [width, height];
+        console.log(`📄 使用自定义PDF尺寸: ${width}×${height}mm`);
+      } else {
+        // 使用标准格式
+        pdfConfig.format = format;
+      }
+
+      const pdf = new jsPDF(pdfConfig);
 
       // 获取 PDF 页面尺寸
       const pdfWidth = pdf.internal.pageSize.getWidth();

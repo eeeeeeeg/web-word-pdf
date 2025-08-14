@@ -51,6 +51,7 @@
 
         <!-- 页面内容 -->
         <div
+          :ref="`page-${pageIndex}`"
           class="page"
           :style="pageStyle(pageIndex)"
           @drop="(e) => handleDrop(e, pageIndex)"
@@ -195,11 +196,11 @@ export default {
         const size = config.pageSize;
         const page = this.schema.pages[pageIndex];
 
-        // 转换尺寸到像素
+        // 转换尺寸到像素 - 使用统一的转换系数
         let width, height;
         if (size.unit === "mm") {
-          width = size.width * 3.78; // 1mm ≈ 3.78px at 96dpi
-          height = size.height * 3.78;
+          width = size.width * 3.7795275591; // 精确转换系数
+          height = size.height * 3.7795275591;
         } else if (size.unit === "in") {
           width = size.width * 96; // 1in = 96px at 96dpi
           height = size.height * 96;
@@ -211,10 +212,10 @@ export default {
         const baseStyle = {
           width: `${width}px`,
           height: `${height}px`,
-          padding: `${config.margins.top * 3.78}px ${
-            config.margins.right * 3.78
-          }px ${config.margins.bottom * 3.78}px ${
-            config.margins.left * 3.78
+          padding: `${config.margins.top * 3.7795275591}px ${
+            config.margins.right * 3.7795275591
+          }px ${config.margins.bottom * 3.7795275591}px ${
+            config.margins.left * 3.7795275591
           }px`,
           backgroundColor: "white", // 默认白色背景
         };
@@ -289,7 +290,9 @@ export default {
       return {
         paddingTop: `${paddingTop}px`,
         paddingBottom: `${paddingBottom}px`,
-        minHeight: `calc(100% - ${paddingTop + paddingBottom}px)`,
+        /* 🎯 设置固定高度而不是最小高度，确保超出内容被正确裁剪 */
+        height: `calc(100% - ${paddingTop + paddingBottom}px)`,
+        maxHeight: `calc(100% - ${paddingTop + paddingBottom}px)`,
       };
     },
 
@@ -309,6 +312,16 @@ export default {
         maxHeight: `${footer.height * 3.78}px`,
         backgroundColor: footer.style?.backgroundColor || "transparent",
       };
+    },
+  },
+  watch: {
+    // 监听schema变化，强制更新页面样式
+    schema: {
+      handler() {
+        // 强制更新组件以确保页面背景样式变化立即生效
+        this.$forceUpdate();
+      },
+      deep: true,
     },
   },
   methods: {
@@ -343,6 +356,46 @@ export default {
           event.dataTransfer.getData("application/json")
         );
         if (componentData) {
+          // 如果是自由组件，需要计算相对于页面内容区域的位置
+          if (
+            componentData.type === "free-text" ||
+            componentData.type === "free-image"
+          ) {
+            const pageElement = event.currentTarget;
+            const rect = pageElement.getBoundingClientRect();
+
+            // 获取页面配置信息
+            const config = this.schema.pageConfig;
+            const margins = config.margins;
+
+            // 计算页面内边距（转换为像素）
+            const paddingLeft = margins.left * 3.7795275591;
+            const paddingTop = margins.top * 3.7795275591;
+
+            // 计算页眉高度
+            let headerHeight = 0;
+            if (config.header.enabled) {
+              headerHeight = config.header.height * 3.78;
+            }
+
+            // 计算相对于页面内容区域的位置
+            const x = event.clientX - rect.left - paddingLeft;
+            const y = event.clientY - rect.top - paddingTop - headerHeight;
+
+            // 更新组件的位置，确保不超出页面边界
+            componentData.transform = {
+              ...componentData.transform,
+              x: Math.max(0, x - componentData.style.width / 2),
+              y: Math.max(0, y - componentData.style.height / 2),
+            };
+
+            // 计算合适的z-index
+            const targetZIndex = this.calculateTargetZIndex(x, y, pageIndex);
+            if (targetZIndex > 0) {
+              componentData.zIndex = targetZIndex;
+            }
+          }
+
           this.$emit("component-drop", {
             component: componentData,
             targetContainer: null,
@@ -356,6 +409,23 @@ export default {
     },
 
     handleComponentDrop(dropData, pageIndex) {
+      // 如果是自由组件且有拖拽位置信息，计算合适的z-index
+      if (
+        dropData.component &&
+        (dropData.component.type === "free-text" ||
+          dropData.component.type === "free-image") &&
+        dropData.dropPosition
+      ) {
+        const targetZIndex = this.calculateTargetZIndex(
+          dropData.dropPosition.x,
+          dropData.dropPosition.y,
+          pageIndex
+        );
+        if (targetZIndex > 0) {
+          dropData.component.zIndex = targetZIndex;
+        }
+      }
+
       this.$emit("component-drop", { ...dropData, pageIndex });
     },
 
@@ -365,6 +435,49 @@ export default {
 
     handleComponentSort(sortData, pageIndex) {
       this.$emit("component-sort", { ...sortData, pageIndex });
+    },
+
+    // 计算目标z-index，确保新组件显示在被覆盖的自由组件之上
+    calculateTargetZIndex(x, y, pageIndex) {
+      const targetPageIndex =
+        pageIndex !== undefined ? pageIndex : this.schema.currentPageIndex;
+      const targetPage = this.schema.pages[targetPageIndex];
+
+      if (!targetPage) return 1;
+
+      const freeComponents = targetPage.components.filter(
+        (comp) => comp.type === "free-text" || comp.type === "free-image"
+      );
+
+      // 找到在指定位置下方的所有自由组件
+      const componentsBelow = freeComponents.filter((comp) => {
+        const transform = comp.transform || {};
+        const style = comp.style || {};
+
+        const compX = transform.x || 0;
+        const compY = transform.y || 0;
+        const compWidth = style.width || 200;
+        const compHeight = style.height || 100;
+
+        // 检查点(x, y)是否在组件范围内
+        return (
+          x >= compX &&
+          x <= compX + compWidth &&
+          y >= compY &&
+          y <= compY + compHeight
+        );
+      });
+
+      if (componentsBelow.length === 0) {
+        // 如果没有被覆盖的组件，使用默认z-index
+        return 1;
+      }
+
+      // 找到被覆盖组件中最高的z-index，然后+1
+      const maxZIndex = Math.max(
+        ...componentsBelow.map((comp) => comp.zIndex || 1)
+      );
+      return maxZIndex + 1;
     },
 
     handleComponentMove(moveData, pageIndex) {
@@ -626,6 +739,8 @@ export default {
   position: relative;
   min-height: 400px;
   transition: all 0.3s ease;
+  /* 🎯 设置页面高度限制，确保超出部分被正确裁剪 */
+  overflow: hidden;
 }
 
 .page.drag-over {
@@ -667,6 +782,10 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* 🎯 Canva 风格：完全隐藏超出页面边界的内容，不显示滚动条 */
+  overflow: hidden;
+  /* 确保裁剪边界清晰 */
+  contain: layout style paint;
 }
 
 .empty-state {

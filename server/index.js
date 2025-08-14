@@ -11,9 +11,10 @@ require("dotenv").config();
 const exportRoutes = require("./routes/export");
 const healthRoutes = require("./routes/health");
 const shareRoutes = require("./routes/share");
+const draftRoutes = require("./routes/drafts");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // 中间件配置
 app.use(
@@ -122,6 +123,7 @@ fs.ensureDirSync(tempDir);
 app.use("/api/health", healthRoutes);
 app.use("/api/export", exportRoutes);
 app.use("/api/share", shareRoutes);
+app.use("/api/drafts", draftRoutes);
 
 // 根路径
 app.get("/", (req, res) => {
@@ -142,6 +144,15 @@ app.get("/", (req, res) => {
         stats: "/api/share/:shareId/stats",
         delete: "/api/share/:shareId",
         cleanup: "/api/share/cleanup",
+      },
+      drafts: {
+        list: "/api/drafts",
+        get: "/api/drafts/:id",
+        create: "/api/drafts",
+        update: "/api/drafts/:id",
+        delete: "/api/drafts/:id",
+        clear: "/api/drafts",
+        convert: "/api/drafts/:id/convert",
       },
     },
     status: "running",

@@ -127,6 +127,7 @@ class SchemaToHtmlConverter {
             border-radius: 6px;
             position: relative;
             padding: ${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px;
+            overflow: hidden;
             ${environmentStyles.page}
         }
 
@@ -174,6 +175,7 @@ class SchemaToHtmlConverter {
                 : 0
             }px;
             box-sizing: border-box;
+            overflow: hidden;
         }
 
         .component {
@@ -196,6 +198,39 @@ class SchemaToHtmlConverter {
         .layout-column {
             position: relative;
             box-sizing: border-box;
+        }
+
+        /* 自由组件样式 */
+        .free-text-component,
+        .free-image-component {
+            position: absolute;
+            box-sizing: border-box;
+        }
+
+        .free-text-content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            overflow: hidden;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+
+        .free-image-component img {
+            display: block;
+        }
+
+        .image-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-size: 14px;
+            background-color: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
         }
 
         .page-break {
@@ -550,6 +585,10 @@ class SchemaToHtmlConverter {
         return this.generateTextHTML(component, isHeaderFooter);
       case "image":
         return this.generateImageHTML(component, isHeaderFooter);
+      case "free-text":
+        return this.generateFreeTextHTML(component, isHeaderFooter);
+      case "free-image":
+        return this.generateFreeImageHTML(component, isHeaderFooter);
       default:
         return "";
     }
@@ -1085,9 +1124,12 @@ class SchemaToHtmlConverter {
     // 基础布局样式
     styles.push("box-sizing: border-box");
     styles.push("display: flex");
-    styles.push("align-items: stretch");
 
-    // 对齐方式 - 基于component.alignment
+    // 垂直对齐方式
+    const verticalAlignment = component.verticalAlignment || "stretch";
+    styles.push(`align-items: ${verticalAlignment}`);
+
+    // 水平对齐方式 - 基于component.alignment
     const alignment = component.alignment || "flex-start";
     styles.push(`justify-content: ${alignment}`);
 
@@ -1182,6 +1224,170 @@ class SchemaToHtmlConverter {
     }
 
     return styles.join("; ");
+  }
+
+  /**
+   * 生成自由文本组件HTML
+   * @param {Object} component - 自由文本组件数据
+   * @param {boolean} isHeaderFooter - 是否为页眉页脚组件
+   * @returns {string} 自由文本组件HTML
+   */
+  static generateFreeTextHTML(component, isHeaderFooter = false) {
+    const style = component.style || {};
+
+    // 构建容器样式
+    const containerStyle = this.buildFreeComponentContainerStyle(
+      component,
+      isHeaderFooter
+    );
+
+    // 构建文本内容样式
+    const textStyle = this.buildFreeTextContentStyle(style);
+
+    // 处理文本内容，支持换行
+    const content = (component.content || "请输入文本内容").replace(
+      /\n/g,
+      "<br>"
+    );
+
+    return `
+      <div class="free-text-component" style="${containerStyle}">
+        <div class="free-text-content" style="${textStyle}">
+          ${content}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * 生成自由图片组件HTML
+   * @param {Object} component - 自由图片组件数据
+   * @param {boolean} isHeaderFooter - 是否为页眉页脚组件
+   * @returns {string} 自由图片组件HTML
+   */
+  static generateFreeImageHTML(component, isHeaderFooter = false) {
+    const style = component.style || {};
+
+    // 构建容器样式
+    const containerStyle = this.buildFreeComponentContainerStyle(
+      component,
+      isHeaderFooter
+    );
+
+    // 构建图片样式
+    const imageStyle = this.buildFreeImageStyle(
+      style,
+      component.keepAspectRatio
+    );
+
+    // 如果没有图片源，显示占位符
+    if (!component.src) {
+      return `
+        <div class="free-image-component" style="${containerStyle}">
+          <div class="image-placeholder" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-color: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px;">
+            <span style="color: #6c757d; font-size: 14px;">图片占位符</span>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="free-image-component" style="${containerStyle}">
+        <img src="${this.escapeHtml(component.src)}"
+             alt="${this.escapeHtml(component.alt || "")}"
+             style="${imageStyle}" />
+      </div>
+    `;
+  }
+
+  /**
+   * 构建自由组件容器样式
+   * @param {Object} component - 组件数据
+   * @param {boolean} isHeaderFooter - 是否为页眉页脚组件
+   * @returns {string} 容器样式字符串
+   */
+  static buildFreeComponentContainerStyle(component, isHeaderFooter = false) {
+    const style = component.style || {};
+    const transform = component.transform || {};
+
+    // isHeaderFooter参数保留用于未来扩展，目前自由组件在页眉页脚中的样式与普通页面相同
+
+    const x = transform.x || 0;
+    const y = transform.y || 0;
+    const rotation = transform.rotation || 0;
+    const scaleX = transform.scaleX || 1;
+    const scaleY = transform.scaleY || 1;
+    const width = style.width || 200;
+    const height = style.height || 100;
+    const zIndex = component.zIndex || 1;
+
+    const transformValue = `translate3d(${x}px, ${y}px, 0) rotate(${rotation}deg) scale(${scaleX}, ${scaleY})`;
+
+    return [
+      "position: absolute",
+      "left: 0px",
+      "top: 0px",
+      `width: ${width}px`,
+      `height: ${height}px`,
+      `transform: ${transformValue}`,
+      "transform-origin: center center",
+      `z-index: ${zIndex}`,
+      `background-color: ${style.backgroundColor || "transparent"}`,
+      `border-radius: ${style.borderRadius || 0}px`,
+    ].join("; ");
+  }
+
+  /**
+   * 构建自由文本内容样式
+   * @param {Object} style - 样式对象
+   * @returns {string} 文本内容样式字符串
+   */
+  static buildFreeTextContentStyle(style) {
+    return [
+      `font-size: ${style.fontSize || 14}px`,
+      `font-family: ${style.fontFamily || "Arial"}`,
+      `color: ${style.color || "#333333"}`,
+      `line-height: ${style.lineHeight || 1.5}`,
+      `text-align: ${style.textAlign || "left"}`,
+      `font-weight: ${style.fontWeight || "normal"}`,
+      `font-style: ${style.fontStyle || "normal"}`,
+      `text-decoration: ${style.textDecoration || "none"}`,
+      "width: 100%",
+      "height: 100%",
+      "display: flex",
+      "align-items: flex-start",
+      "justify-content: flex-start",
+      "padding: 8px",
+      "box-sizing: border-box",
+      "overflow: hidden",
+    ].join("; ");
+  }
+
+  /**
+   * 构建自由图片样式
+   * @param {Object} style - 样式对象
+   * @param {boolean} keepAspectRatio - 是否保持纵横比
+   * @returns {string} 图片样式字符串
+   */
+  static buildFreeImageStyle(style, keepAspectRatio = true) {
+    const baseStyles = [
+      `object-fit: ${style.objectFit || "cover"}`,
+      `border-radius: ${style.borderRadius || 0}px`,
+      `border: ${style.border || "none"}`,
+    ];
+
+    if (keepAspectRatio) {
+      baseStyles.push(
+        "max-width: 100%",
+        "max-height: 100%",
+        "width: auto",
+        "height: auto"
+      );
+    } else {
+      baseStyles.push("width: 100%", "height: 100%");
+    }
+
+    return baseStyles.join("; ");
   }
 
   /**

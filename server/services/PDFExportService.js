@@ -236,48 +236,133 @@ class PDFExportService {
    * @returns {Object} 格式配置对象
    */
   static handlePageFormat(format, options = {}) {
-    // 标准Puppeteer支持的格式
-    const standardFormats = [
-      "A0",
-      "A1",
-      "A2",
-      "A3",
-      "A4",
-      "A5",
-      "A6",
-      "Letter",
-      "Legal",
-      "Tabloid",
-      "Ledger",
-    ];
+    // // 标准Puppeteer支持的格式
+    // const standardFormats = [
+    //   "A0",
+    //   "A1",
+    //   "A2",
+    //   "A3",
+    //   "A4",
+    //   "A5",
+    //   "A6",
+    //   "Letter",
+    //   "Legal",
+    //   "Tabloid",
+    //   "Ledger",
+    // ];
 
-    // 如果是标准格式，直接使用
-    if (standardFormats.includes(format)) {
-      return { format: format };
-    }
+    // // 如果是标准格式，直接使用
+    // if (standardFormats.includes(format)) {
+    //   return { format: format };
+    // }
 
-    // 自定义格式映射
-    const customFormats = {
-      PPT_16_9: { width: "254mm", height: "143mm" },
-      PPT_4_3: { width: "254mm", height: "190mm" },
+    // 统一的mm转px转换系数 (96dpi标准)
+    const MM_TO_PX = 3.7795275591; // 96/25.4
+
+    // 标准页面尺寸定义 (毫米)
+    const standardSizes = {
+      A4: { width: 221, height: 308 },
+      A3: { width: 298, height: 421 },
+      A5: { width: 149, height: 211 },
+      Letter: { width: 216.9, height: 280.4 },
+      Legal: { width: 216.9, height: 356.6 },
+      PPT_16_9: { width: 255, height: 144 },
+      PPT_4_3: { width: 255, height: 191 },
     };
+
+    // 自定义格式映射 - 使用统一算法计算所有尺寸
+    const customFormats = {};
+
+    // 为所有标准格式生成精确的mm和px格式
+    Object.keys(standardSizes).forEach((formatName) => {
+      const size = standardSizes[formatName];
+      customFormats[formatName] = {
+        width: `${size.width}mm`,
+        height: `${size.height}mm`,
+        // 同时提供像素值供参考
+        widthPx: Math.round(size.width * MM_TO_PX),
+        heightPx: Math.round(size.height * MM_TO_PX),
+      };
+    });
+
+    // 添加自定义格式支持
+    customFormats.Custom = null; // 自定义格式需要通过options传递尺寸
+
+    // 调试信息：输出所有支持的格式
+    console.log(
+      "PDF导出支持的页面格式:",
+      Object.keys(customFormats).filter((key) => key !== "Custom")
+    );
 
     // 如果是已知的自定义格式
     if (customFormats[format]) {
+      console.log(`使用格式 ${format}:`, customFormats[format]);
       return customFormats[format];
     }
 
     // 如果提供了自定义尺寸
     if (options.width && options.height) {
-      return {
-        width: options.width,
-        height: options.height,
+      const unit = options.unit || "mm";
+
+      // 使用统一的转换算法处理自定义尺寸
+      let widthMm, heightMm;
+
+      if (unit === "px") {
+        // px转mm
+        widthMm = options.width / MM_TO_PX;
+        heightMm = options.height / MM_TO_PX;
+      } else {
+        // 默认为mm或其他单位直接使用
+        widthMm = parseFloat(options.width);
+        heightMm = parseFloat(options.height);
+      }
+
+      const customSize = {
+        width: `${widthMm}mm`,
+        height: `${heightMm}mm`,
+        widthPx: Math.round(widthMm * MM_TO_PX),
+        heightPx: Math.round(heightMm * MM_TO_PX),
+        unit: unit,
+        original: { width: options.width, height: options.height },
       };
+
+      console.log(`使用自定义尺寸:`, customSize);
+      return customSize;
     }
 
     // 默认使用A4
     console.warn(`未知的页面格式: ${format}，使用默认A4格式`);
     return { format: "A4" };
+  }
+
+  /**
+   * 格式化尺寸，确保包含正确的单位
+   * @param {number|string} dimension - 尺寸值
+   * @param {string} unit - 单位 ('mm', 'px', 'in', 'cm')
+   * @returns {string} 格式化后的尺寸字符串
+   */
+  formatDimension(dimension, unit = "mm") {
+    // 如果已经是字符串且包含单位，直接返回
+    if (
+      typeof dimension === "string" &&
+      /\d+(mm|px|in|cm|pt)$/.test(dimension)
+    ) {
+      return dimension;
+    }
+
+    // 如果是数字，添加单位
+    if (typeof dimension === "number") {
+      return `${dimension}${unit}`;
+    }
+
+    // 如果是字符串数字，添加单位
+    const numValue = parseFloat(dimension);
+    if (!isNaN(numValue)) {
+      return `${numValue}${unit}`;
+    }
+
+    // 默认返回原值
+    return dimension;
   }
 
   /**

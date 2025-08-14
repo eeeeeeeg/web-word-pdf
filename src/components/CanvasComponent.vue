@@ -97,7 +97,6 @@
       :style="imageContainerStyle"
       :data-component-id="component.id"
       :data-component-type="component.type"
-      @click="handleImageComponentClick"
     >
       <!-- 显示上传的图片 -->
       <img
@@ -107,6 +106,7 @@
         :style="imageStyle"
         @load="handleImageLoad"
         @error="handleImageError"
+        @click="handleImageComponentClick"
       />
 
       <!-- 上传中状态 -->
@@ -148,8 +148,34 @@
       </div>
     </div>
 
-    <!-- 选中状态的操作按钮 -->
-    <div v-if="selected && mode === 'edit'" class="component-actions">
+    <!-- 自由文本组件 -->
+    <FreeTextComponent
+      v-else-if="component.type === 'free-text'"
+      :component="component"
+      :selected="selected"
+      :mode="mode"
+      @select="$emit('select', $event)"
+      @update="$emit('update', $event)"
+      @delete="$emit('delete', $event)"
+      @copy="$emit('copy', $event)"
+    />
+
+    <!-- 自由图片组件 -->
+    <FreeImageComponent
+      v-else-if="component.type === 'free-image'"
+      :component="component"
+      :selected="selected"
+      :mode="mode"
+      @select="$emit('select', $event)"
+      @update="$emit('update', $event)"
+      @delete="$emit('delete', $event)"
+    />
+
+    <!-- 选中状态的操作按钮（排除自由组件） -->
+    <div
+      v-if="selected && mode === 'edit' && !isFreeComponent"
+      class="component-actions"
+    >
       <!-- 布局组件的排序按钮和复制按钮（仅布局组件显示） -->
       <template v-if="component.type === 'layout'">
         <button
@@ -190,11 +216,15 @@
 
 <script>
 import RichTextEditor from "./RichTextEditor.vue";
+import FreeTextComponent from "./FreeTextComponent.vue";
+import FreeImageComponent from "./FreeImageComponent.vue";
 
 export default {
   name: "CanvasComponent",
   components: {
     RichTextEditor,
+    FreeTextComponent,
+    FreeImageComponent,
   },
   props: {
     component: {
@@ -252,11 +282,19 @@ export default {
     };
   },
   computed: {
+    // 判断是否为自由组件
+    isFreeComponent() {
+      return (
+        this.component.type === "free-text" ||
+        this.component.type === "free-image"
+      );
+    },
+
     layoutStyle() {
       const style = this.component.style;
       const baseStyle = {
         display: "flex",
-        alignItems: "stretch",
+        alignItems: this.component.verticalAlignment || "stretch",
         justifyContent: this.component.alignment || "flex-start",
         margin: `${style.margin.top}px ${style.margin.right}px ${style.margin.bottom}px ${style.margin.left}px`,
         padding: `${style.padding.top}px ${style.padding.right}px ${style.padding.bottom}px ${style.padding.left}px`,
@@ -756,14 +794,41 @@ export default {
 
         console.log("拖拽悬停:", this.component.id, newPosition);
         this.dragOverPosition = newPosition;
-      } else if (libraryDragType && this.component.type === "layout") {
-        // 允许从组件库拖拽到布局组件的前后位置
-        event.dataTransfer.dropEffect = "copy";
+      } else if (libraryDragType) {
+        // 检查拖拽的组件类型
+        try {
+          const componentData = JSON.parse(
+            event.dataTransfer.getData("application/json")
+          );
 
-        // 计算拖拽位置
-        const rect = event.currentTarget.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        this.dragOverPosition = event.clientY < midY ? "before" : "after";
+          if (componentData) {
+            // 如果是自由组件，允许拖拽到任何组件上
+            if (
+              componentData.type === "free-text" ||
+              componentData.type === "free-image"
+            ) {
+              event.dataTransfer.dropEffect = "copy";
+              // 自由组件不需要显示位置指示器，因为它们是绝对定位的
+              this.dragOverPosition = null;
+            } else if (this.component.type === "layout") {
+              // 对于非自由组件，只允许拖拽到布局组件的前后位置
+              event.dataTransfer.dropEffect = "copy";
+
+              // 计算拖拽位置
+              const rect = event.currentTarget.getBoundingClientRect();
+              const midY = rect.top + rect.height / 2;
+              this.dragOverPosition = event.clientY < midY ? "before" : "after";
+            }
+          }
+        } catch (error) {
+          // 如果无法解析数据，按原来的逻辑处理
+          if (this.component.type === "layout") {
+            event.dataTransfer.dropEffect = "copy";
+            const rect = event.currentTarget.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            this.dragOverPosition = event.clientY < midY ? "before" : "after";
+          }
+        }
       }
     },
 
@@ -801,25 +866,68 @@ export default {
             position: this.dragOverPosition,
           });
         }
-      } else if (libraryDragType && this.component.type === "layout") {
-        // 处理从组件库拖拽到布局组件前后位置
+      } else if (libraryDragType) {
+        // 处理从组件库拖拽
         try {
           const componentData = JSON.parse(
             event.dataTransfer.getData("application/json")
           );
           if (componentData) {
-            // 检查是否尝试将布局组件拖拽到布局组件前后位置
-            if (componentData.type === "layout") {
-              console.warn("不允许将布局组件拖拽到布局组件前后位置");
-              this.dragOverPosition = null;
-              return;
-            }
+            // 如果是自由组件，直接添加到页面上（计算相对于页面的位置）
+            if (
+              componentData.type === "free-text" ||
+              componentData.type === "free-image"
+            ) {
+              // 获取页面元素和鼠标位置
+              const pageElement = this.getPageElement();
+              if (pageElement) {
+                const rect = pageElement.getBoundingClientRect();
 
-            this.$emit("drop-adjacent", {
-              component: componentData,
-              targetComponentId: this.component.id,
-              position: this.dragOverPosition,
-            });
+                // 获取页面内容区域的位置偏移
+                const contentElement =
+                  pageElement.querySelector(".page-content");
+                let contentOffsetX = 0;
+                let contentOffsetY = 0;
+
+                if (contentElement) {
+                  const contentRect = contentElement.getBoundingClientRect();
+                  contentOffsetX = contentRect.left - rect.left;
+                  contentOffsetY = contentRect.top - rect.top;
+                }
+
+                // 计算相对于页面内容区域的位置
+                const x = event.clientX - rect.left - contentOffsetX;
+                const y = event.clientY - rect.top - contentOffsetY;
+
+                // 更新组件的位置，确保不超出页面边界
+                componentData.transform = {
+                  ...componentData.transform,
+                  x: Math.max(0, x - componentData.style.width / 2),
+                  y: Math.max(0, y - componentData.style.height / 2),
+                };
+
+                // 直接添加到页面，让父组件计算合适的z-index
+                this.$emit("drop", {
+                  component: componentData,
+                  targetContainer: null,
+                  position: null, // 自由组件不需要位置
+                  dropPosition: { x, y }, // 传递拖拽位置，用于计算z-index
+                });
+              }
+            } else if (this.component.type === "layout") {
+              // 对于非自由组件，只能拖拽到布局组件前后位置
+              if (componentData.type === "layout") {
+                console.warn("不允许将布局组件拖拽到布局组件前后位置");
+                this.dragOverPosition = null;
+                return;
+              }
+
+              this.$emit("drop-adjacent", {
+                component: componentData,
+                targetComponentId: this.component.id,
+                position: this.dragOverPosition,
+              });
+            }
           }
         } catch (error) {
           console.error("Failed to parse dropped component data:", error);
@@ -827,6 +935,16 @@ export default {
       }
 
       this.dragOverPosition = null;
+    },
+
+    // 获取页面元素
+    getPageElement() {
+      // 向上查找页面元素
+      let element = this.$el;
+      while (element && !element.classList.contains("page")) {
+        element = element.parentElement;
+      }
+      return element;
     },
 
     handleSortDragEnter(event) {
@@ -855,15 +973,6 @@ export default {
   position: relative;
   cursor: pointer;
   transition: all 0.2s;
-}
-
-.canvas-component:hover {
-  outline: 1px solid #d0d0d0;
-}
-
-.canvas-component.selected {
-  outline: 2px solid #1890ff;
-  outline-offset: 2px;
 }
 
 /* 预览模式下禁用hover和选中效果 */

@@ -69,6 +69,8 @@ export const COMPONENT_TYPES = {
   LAYOUT: "layout",
   TEXT: "text",
   IMAGE: "image",
+  FREE_TEXT: "free-text",
+  FREE_IMAGE: "free-image",
 };
 
 /**
@@ -113,7 +115,8 @@ export function createComponent(type, options = {}) {
         ...baseComponent,
         preset: options.preset || "single",
         columns: options.columns || LAYOUT_PRESETS.SINGLE_COLUMN.columns,
-        alignment: options.alignment || "left",
+        alignment: options.alignment || "flex-start",
+        verticalAlignment: options.verticalAlignment || "stretch",
         children: options.children || [],
         style: {
           ...baseComponent.style,
@@ -156,6 +159,61 @@ export function createComponent(type, options = {}) {
         },
         keepAspectRatio: options.keepAspectRatio !== false,
         alignment: options.alignment || "center", // 图片对齐方式，默认居中
+      };
+
+    case COMPONENT_TYPES.FREE_TEXT:
+      return {
+        ...baseComponent,
+        content: options.content || "请输入文本内容",
+        style: {
+          ...baseComponent.style,
+          fontSize: options.fontSize || 14,
+          fontFamily: options.fontFamily || "Arial",
+          color: options.color || "#333333",
+          lineHeight: options.lineHeight || 1.5,
+          textAlign: options.textAlign || "left",
+          fontWeight: options.fontWeight || "normal",
+          fontStyle: options.fontStyle || "normal",
+          textDecoration: options.textDecoration || "none",
+          backgroundColor: options.backgroundColor || "transparent",
+          borderRadius: options.borderRadius || 0,
+          width: options.width || 200,
+          height: options.height || 100,
+        },
+        // 自由变换属性
+        transform: {
+          x: options.x || 100,
+          y: options.y || 100,
+          rotation: options.rotation || 0,
+          scaleX: options.scaleX || 1,
+          scaleY: options.scaleY || 1,
+        },
+        zIndex: options.zIndex || 1,
+      };
+
+    case COMPONENT_TYPES.FREE_IMAGE:
+      return {
+        ...baseComponent,
+        src: options.src || "",
+        alt: options.alt || "",
+        style: {
+          ...baseComponent.style,
+          width: options.width || 200,
+          height: options.height || 150,
+          objectFit: options.objectFit || "cover",
+          borderRadius: options.borderRadius || 0,
+          border: options.border || "none",
+        },
+        keepAspectRatio: options.keepAspectRatio !== false,
+        // 自由变换属性
+        transform: {
+          x: options.x || 100,
+          y: options.y || 100,
+          rotation: options.rotation || 0,
+          scaleX: options.scaleX || 1,
+          scaleY: options.scaleY || 1,
+        },
+        zIndex: options.zIndex || 1,
       };
 
     default:

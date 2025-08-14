@@ -50,6 +50,29 @@
           </div>
         </div>
       </div>
+
+      <!-- 自由组件 -->
+      <div class="component-category">
+        <h4>自由组件</h4>
+        <div class="component-list">
+          <div
+            v-for="freeComp in freeComponents"
+            :key="freeComp.type"
+            class="component-item"
+            draggable="true"
+            @dragstart="handleDragStart($event, freeComp)"
+            @dragend="handleDragEnd"
+          >
+            <div class="component-icon">
+              <div :class="freeComp.iconClass"></div>
+            </div>
+            <div class="component-info">
+              <div class="component-name">{{ freeComp.name }}</div>
+              <div class="component-desc">{{ freeComp.description }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -108,6 +131,20 @@ export default {
           iconClass: "content-icon image-icon",
         },
       ],
+      freeComponents: [
+        {
+          type: "free-text",
+          name: "自由文本",
+          description: "可自由拖拽、缩放、旋转的文本组件",
+          iconClass: "free-icon free-text-icon",
+        },
+        {
+          type: "free-image",
+          name: "自由图片",
+          description: "可自由拖拽、缩放、旋转的图片组件",
+          iconClass: "free-icon free-image-icon",
+        },
+      ],
     };
   },
   methods: {
@@ -123,6 +160,10 @@ export default {
         component = createComponent(COMPONENT_TYPES.TEXT);
       } else if (componentData.type === "image") {
         component = createComponent(COMPONENT_TYPES.IMAGE);
+      } else if (componentData.type === "free-text") {
+        component = createComponent(COMPONENT_TYPES.FREE_TEXT);
+      } else if (componentData.type === "free-image") {
+        component = createComponent(COMPONENT_TYPES.FREE_IMAGE);
       }
 
       // 设置拖拽数据
@@ -280,6 +321,45 @@ export default {
 .image-icon::before {
   content: "🖼";
   font-size: 14px;
+}
+
+.free-icon {
+  width: 24px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #722ed1;
+  position: relative;
+}
+
+.free-text-icon::before {
+  content: "T";
+  font-weight: bold;
+}
+
+.free-text-icon::after {
+  content: "↻";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 8px;
+  color: #722ed1;
+}
+
+.free-image-icon::before {
+  content: "🖼";
+  font-size: 14px;
+}
+
+.free-image-icon::after {
+  content: "↻";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 8px;
+  color: #722ed1;
 }
 
 .component-info {

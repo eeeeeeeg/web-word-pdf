@@ -32,20 +32,58 @@
           class="btn"
           :class="{ active: autoPaginationEnabled }"
           @click="toggleAutoPagination"
-          title="自动分页"
+          :title="
+            autoPaginationEnabled
+              ? '自动分页已开启：独立组件超出高度时自动分页'
+              : '自动分页已关闭：超出页面的内容将被隐藏'
+          "
         >
           {{ autoPaginationEnabled ? "自动分页: 开" : "自动分页: 关" }}
+        </button>
+
+        <!-- 🎯 调试按钮：测试内容裁剪效果 -->
+        <button
+          class="btn"
+          @click="testContentClipping"
+          title="添加测试组件验证内容裁剪效果"
+          style="background: #52c41a; color: white"
+        >
+          测试裁剪
         </button>
         <button
           class="btn"
           @click="manualPagination"
           :disabled="paginationInProgress"
-          title="手动分页"
+          :title="
+            autoPaginationEnabled
+              ? '手动执行分页算法'
+              : '手动分页（不影响内容裁剪模式）'
+          "
         >
           {{ paginationInProgress ? "分页中..." : "手动分页" }}
         </button>
-        <button class="btn" @click="saveSchema">保存</button>
-        <button class="btn" @click="loadSchema">加载</button>
+        <!-- 草稿快速操作 -->
+        <div class="draft-quick-actions">
+          <button class="btn btn-draft" @click="openDraftManager">
+            草稿管理
+          </button>
+          <button
+            class="btn btn-draft-save"
+            @click="quickSaveDraft"
+            title="快速保存草稿"
+          >
+            💾
+          </button>
+          <button
+            class="btn btn-draft-auto"
+            @click="toggleAutoSave"
+            :class="{ active: draftAutoSaveEnabled }"
+            :title="draftAutoSaveEnabled ? '关闭自动保存' : '开启自动保存'"
+          >
+            {{ draftAutoSaveEnabled ? "🔄" : "⏸️" }}
+          </button>
+        </div>
+
         <button class="btn btn-share" @click="openShareDialog">分享</button>
         <button
           v-if="mode === 'edit'"
@@ -58,7 +96,7 @@
         <div class="export-dropdown">
           <button class="btn" @click="toggleExportMenu">导出 ▼</button>
           <div v-if="showExportMenu" class="export-menu">
-            <!-- <button @click="exportAsPDF">导出为 PDF</button> -->
+            <button @click="exportAsPDF">导出为 PDF (客户端)</button>
             <button @click="exportAsImage">导出为图片</button>
             <button @click="exportAsWord">导出为 Word</button>
             <button @click="exportAsHTML">导出为 HTML (Playwright)</button>
@@ -93,9 +131,19 @@
             @close="closeShareDialog"
           />
 
-          <!-- 分页警告 -->
+          <!-- 草稿管理对话框 -->
+          <DraftManager
+            v-if="showDraftManager"
+            :current-schema="pageSchema"
+            @close="closeDraftManager"
+            @load-draft="handleLoadDraft"
+            @draft-saved="handleDraftSaved"
+            @schema-created="handleSchemaCreated"
+          />
+
+          <!-- 🎯 分页警告 - 只在独立组件超出高度时显示 -->
           <PaginationWarnings
-            v-if="paginationWarnings.length > 0"
+            v-if="paginationWarnings.length > 0 && autoPaginationEnabled"
             :warnings="paginationWarnings"
             @close="paginationWarnings = []"
             @disable-auto-pagination="handleDisableAutoPagination"
@@ -105,17 +153,18 @@
             @adjust-margins="handleAdjustMargins"
           />
 
-          <!-- 分页警告 -->
-          <PaginationWarnings
-            v-if="paginationWarnings.length > 0"
-            :warnings="paginationWarnings"
-            @close="paginationWarnings = []"
-            @disable-auto-pagination="handleDisableAutoPagination"
-            @retry-pagination="manualPagination"
-            @select-component="handleSelectComponentFromWarning"
-            @split-component="handleSplitComponent"
-            @adjust-margins="handleAdjustMargins"
-          />
+          <!-- 🎯 内容处理模式提示 -->
+          <div
+            v-if="
+              !autoPaginationEnabled && mode === 'edit' && !paginationInProgress
+            "
+            class="content-mode-indicator"
+            title="当前模式：超出页面高度的内容将被隐藏，不会显示分页警告。手动分页不会改变此模式。"
+          >
+            <span class="indicator-icon">📄</span>
+            <span class="indicator-text">内容裁剪模式</span>
+            <span class="indicator-desc">超出部分隐藏</span>
+          </div>
 
           <!-- 画布 -->
           <Canvas
@@ -146,8 +195,11 @@
         <PropertyPanel
           :component="selectedComponent"
           :page-config="pageSchema.pageConfig"
+          :schema="pageSchema"
           @update="handlePropertyUpdate"
           @show-global-config="showGlobalConfig = true"
+          @arrange="handleComponentArrange"
+          @component-select="handleComponentSelect"
         />
       </div>
     </div>
@@ -175,10 +227,13 @@ import {
 } from "../types/schema.js";
 import {
   localStorageManager,
-  fileManager,
   historyManager,
   AutoSaveManager,
 } from "../utils/schemaManager.js";
+import {
+  serverDraftManager,
+  ServerDraftAutoSaveManager,
+} from "../utils/serverDraftManager.js";
 import {
   PDFExportManager,
   ImageExportManager,
@@ -197,6 +252,7 @@ import GlobalConfig from "./GlobalConfig.vue";
 import PaginationWarnings from "./PaginationWarnings.vue";
 import ShareDialog from "./ShareDialog.vue";
 import PageStyleConfig from "./PageStyleConfig.vue";
+import DraftManager from "./DraftManager.vue";
 
 import { exportPDF, exportWord } from "@/apis";
 import SchemaToHtmlConverter from "@/utils/schemaToHtml";
@@ -211,6 +267,7 @@ export default {
     PaginationWarnings,
     ShareDialog,
     PageStyleConfig,
+    DraftManager,
   },
   data() {
     return {
@@ -224,7 +281,7 @@ export default {
       hasUnsavedChanges: false,
       showExportMenu: false,
       // 自动分页相关状态
-      autoPaginationEnabled: true,
+      autoPaginationEnabled: false, // 🎯 默认关闭自动分页，避免意外创建多页
       heightObserver: null,
       paginationInProgress: false,
       paginationWarnings: [],
@@ -234,18 +291,31 @@ export default {
       currentPageIndex: 0,
       // 样式更新触发器，用于强制Vue重新渲染
       styleUpdateTrigger: 0,
+      // 草稿相关状态
+      showDraftManager: false,
+      draftAutoSaveManager: null,
+      currentDraftId: null,
+      draftAutoSaveEnabled: true,
     };
   },
 
-  mounted() {
+  async mounted() {
     // 初始化自动保存
     this.autoSaveManager = new AutoSaveManager(() => {
       this.autoSave();
     });
     this.autoSaveManager.enable();
 
+    // 初始化草稿自动保存
+    this.draftAutoSaveManager = new ServerDraftAutoSaveManager((draftId) => {
+      this.autosaveDraft(draftId);
+    });
+
     // 尝试加载上次的工作
     this.loadLastSession();
+
+    // 初始化自动保存草稿ID
+    await this.initializeAutoSaveDraft();
 
     // 添加页面关闭前的提示
     window.addEventListener("beforeunload", this.handleBeforeUnload);
@@ -263,6 +333,9 @@ export default {
   beforeDestroy() {
     if (this.autoSaveManager) {
       this.autoSaveManager.disable();
+    }
+    if (this.draftAutoSaveManager) {
+      this.draftAutoSaveManager.disable();
     }
     if (this.heightObserver) {
       this.heightObserver.disconnect();
@@ -697,6 +770,122 @@ export default {
       }
     },
 
+    handleComponentArrange(data) {
+      const { componentId, action } = data;
+
+      // 找到组件所在的页面和位置
+      let targetComponents = null;
+      let componentIndex = -1;
+      let component = null;
+
+      for (const page of this.pageSchema.pages) {
+        const index = page.components.findIndex(
+          (comp) => comp.id === componentId
+        );
+        if (index !== -1) {
+          targetComponents = page.components;
+          componentIndex = index;
+          component = page.components[index];
+          break;
+        }
+      }
+
+      if (!targetComponents || componentIndex === -1 || !component) return;
+
+      // 对于自由组件，使用z-index控制层级
+      if (component.type === "free-text" || component.type === "free-image") {
+        this.handleFreeComponentArrange(component, targetComponents, action);
+      } else {
+        // 对于普通组件，使用数组位置控制层级
+        this.handleNormalComponentArrange(
+          component,
+          targetComponents,
+          componentIndex,
+          action
+        );
+      }
+
+      this.updateTimestamp();
+      this.markAsChanged();
+    },
+
+    handleFreeComponentArrange(component, allComponents, action) {
+      // 获取当前页面所有自由组件的z-index值
+      const freeComponents = allComponents.filter(
+        (comp) => comp.type === "free-text" || comp.type === "free-image"
+      );
+
+      const currentZIndex = component.zIndex || 1;
+
+      switch (action) {
+        case "move-forward":
+          // 前移一层：z-index + 1
+          component.zIndex = currentZIndex + 1;
+          break;
+
+        case "move-backward":
+          // 后移一层：z-index - 1，但不能小于1
+          component.zIndex = Math.max(1, currentZIndex - 1);
+          break;
+
+        case "bring-to-front":
+          {
+            // 移至最前：找到最大的z-index，然后+1
+            const maxZIndex = Math.max(
+              ...freeComponents.map((comp) => comp.zIndex || 1)
+            );
+            component.zIndex = maxZIndex + 1;
+          }
+          break;
+        case "send-to-back":
+          // 移至最后：设置为1，其他组件的z-index都+1
+          freeComponents.forEach((comp) => {
+            if (comp.id !== component.id && (comp.zIndex || 1) >= 1) {
+              comp.zIndex = (comp.zIndex || 1) + 1;
+            }
+          });
+          component.zIndex = 1;
+          break;
+      }
+    },
+
+    handleNormalComponentArrange(
+      component,
+      targetComponents,
+      componentIndex,
+      action
+    ) {
+      switch (action) {
+        case "move-forward":
+          // 前移一层
+          if (componentIndex < targetComponents.length - 1) {
+            targetComponents.splice(componentIndex, 1);
+            targetComponents.splice(componentIndex + 1, 0, component);
+          }
+          break;
+
+        case "move-backward":
+          // 后移一层
+          if (componentIndex > 0) {
+            targetComponents.splice(componentIndex, 1);
+            targetComponents.splice(componentIndex - 1, 0, component);
+          }
+          break;
+
+        case "bring-to-front":
+          // 移至最前
+          targetComponents.splice(componentIndex, 1);
+          targetComponents.push(component);
+          break;
+
+        case "send-to-back":
+          // 移至最后
+          targetComponents.splice(componentIndex, 1);
+          targetComponents.unshift(component);
+          break;
+      }
+    },
+
     updatePageConfig(config) {
       this.pageSchema.pageConfig = { ...this.pageSchema.pageConfig, ...config };
       this.updateTimestamp();
@@ -714,6 +903,10 @@ export default {
       // 重置自动保存定时器
       if (this.autoSaveManager) {
         this.autoSaveManager.reset();
+      }
+      // 重置草稿自动保存定时器
+      if (this.draftAutoSaveManager) {
+        this.draftAutoSaveManager.reset();
       }
     },
 
@@ -748,29 +941,6 @@ export default {
       const exportDropdown = this.$el.querySelector(".export-dropdown");
       if (exportDropdown && !exportDropdown.contains(event.target)) {
         this.showExportMenu = false;
-      }
-    },
-
-    saveSchema() {
-      try {
-        fileManager.exportSchemaAsJson(this.pageSchema);
-        this.hasUnsavedChanges = false;
-      } catch (error) {
-        alert("保存失败: " + error.message);
-      }
-    },
-
-    async loadSchema() {
-      try {
-        const schema = await fileManager.importSchemaFromJson();
-        this.pageSchema = schema;
-        this.selectedComponent = null;
-        this.hasUnsavedChanges = false;
-        // 清空历史记录并添加新的起点
-        historyManager.clear();
-        historyManager.addHistory(this.pageSchema);
-      } catch (error) {
-        alert("加载失败: " + error.message);
       }
     },
 
@@ -814,9 +984,27 @@ export default {
         }
 
         const pageConfig = this.pageSchema.pageConfig;
+
+        // 🎯 计算调整后的页面尺寸，避免分页
+        const originalWidth = pageConfig.pageSize.width;
+        const originalHeight = pageConfig.pageSize.height;
+        const componentCount =
+          this.pageSchema.pages[0]?.components?.length || 0;
+        const baseExtraHeight = 50;
+        const dynamicExtraHeight = Math.min(componentCount * 5, 30);
+        const extraHeight = baseExtraHeight + dynamicExtraHeight;
+
+        console.log(
+          `📏 客户端PDF导出尺寸调整: ${originalWidth}×${originalHeight}mm → ${originalWidth}×${
+            originalHeight + extraHeight
+          }mm`
+        );
+
         await PDFExportManager.exportToPDF(canvasElement, {
           filename: `页面设计_${new Date().toLocaleDateString()}.pdf`,
-          format: pageConfig.pageSize.preset.toLowerCase(),
+          format: "custom", // 使用自定义格式
+          width: originalWidth,
+          height: originalHeight + extraHeight,
           orientation: pageConfig.pageSize.orientation || "portrait",
           margin: Math.max(
             pageConfig.margins.top,
@@ -867,11 +1055,30 @@ export default {
     exportAsHTML() {
       this.showExportMenu = false;
       try {
-        const htmlContent = this.generatePlaywrightHTML();
-        console.log(" htmlContent -------------------- ", htmlContent);
-
         // 从页面配置中获取参数
         const pageConfig = this.pageSchema.pageConfig;
+
+        // 调试信息：显示页面数量和尺寸
+        console.log("📄 页面数据调试信息:");
+        console.log("总页面数:", this.pageSchema.pages?.length || 0);
+        console.log("页面配置:", {
+          preset: pageConfig.pageSize.preset,
+          width: pageConfig.pageSize.width,
+          height: pageConfig.pageSize.height,
+          orientation: pageConfig.pageSize.orientation,
+          margins: pageConfig.margins,
+        });
+        console.log(
+          "页面列表:",
+          this.pageSchema.pages?.map((page, index) => ({
+            index,
+            id: page.id,
+            componentsCount: page.components?.length || 0,
+          }))
+        );
+
+        const htmlContent = this.generatePlaywrightHTML();
+        console.log(" htmlContent -------------------- ", htmlContent);
         const margins = pageConfig.margins;
 
         // 由于页眉页脚已经集成到主HTML中，使用原始边距
@@ -890,6 +1097,29 @@ export default {
           printBackground: true,
           scale: 1,
         };
+
+        // 🎯 始终设置自定义尺寸，增加高度避免分页精度问题
+        const originalWidth = pageConfig.pageSize.width;
+        const originalHeight = pageConfig.pageSize.height;
+
+        // 智能计算额外高度：基础50mm + 根据组件数量动态调整
+        const componentCount =
+          this.pageSchema.pages[0]?.components?.length || 0;
+        const baseExtraHeight = 50; // 基础额外高度
+        const dynamicExtraHeight = Math.min(componentCount * 5, 30); // 每个组件增加5mm，最多30mm
+        const extraHeight = baseExtraHeight + dynamicExtraHeight;
+
+        exportOptions.width = `${originalWidth}mm`;
+        exportOptions.height = `${originalHeight + extraHeight}mm`;
+
+        console.log(
+          `📏 导出尺寸调整: 原始 ${originalWidth}×${originalHeight}mm → 导出 ${originalWidth}×${
+            originalHeight + extraHeight
+          }mm (组件数: ${componentCount}, 额外高度: ${extraHeight}mm)`
+        );
+
+        // 移除format选项，使用自定义尺寸
+        delete exportOptions.format;
 
         exportPDF(htmlContent, exportOptions);
         // 可选：同时导出HTML文件用于调试
@@ -929,6 +1159,7 @@ export default {
     },
 
     addPage() {
+      // 创建空白页面，使用默认样式（不继承当前页面样式）
       const newPage = createPage({
         name: `页面${this.pageSchema.pages.length + 1}`,
       });
@@ -1097,7 +1328,14 @@ export default {
         if (result.success) {
           // 应用新的页面结构
           this.pageSchema = result.newSchema;
-          this.paginationWarnings = result.warnings || [];
+
+          // 🎯 只在有严重问题时显示警告（如独立组件过大）
+          const criticalWarnings = (result.warnings || []).filter(
+            (warning) =>
+              warning.type === "COMPONENT_TOO_LARGE" ||
+              warning.severity === "critical"
+          );
+          this.paginationWarnings = criticalWarnings;
 
           // 重新设置高度观察器
           this.$nextTick(() => {
@@ -1108,12 +1346,20 @@ export default {
           this.markAsChanged();
 
           console.log("自动分页完成:", result.statistics);
+          if (criticalWarnings.length === 0) {
+            console.log("✅ 页面内容已优化，超出部分将被隐藏");
+          }
         } else {
           console.warn("自动分页失败:", result.errors);
-          this.paginationWarnings = result.errors || [];
+          // 只显示关键错误
+          const criticalErrors = (result.errors || []).filter(
+            (error) => error.includes("组件过大") || error.includes("无法分页")
+          );
+          this.paginationWarnings = criticalErrors;
         }
       } catch (error) {
         console.error("执行自动分页时出错:", error);
+        // 只有真正的错误才显示警告
         this.paginationWarnings = [error.message];
       }
     },
@@ -1134,7 +1380,26 @@ export default {
 
       try {
         this.paginationInProgress = true;
+
+        // 🎯 保存当前的自动分页状态
+        const originalAutoPaginationState = this.autoPaginationEnabled;
+
+        // 临时启用自动分页以执行分页逻辑
+        this.autoPaginationEnabled = true;
+
         await this.executeAutoPagination();
+
+        // 🎯 恢复原始的自动分页状态，保持内容裁剪行为不变
+        this.autoPaginationEnabled = originalAutoPaginationState;
+
+        console.log(
+          `📄 手动分页完成，自动分页状态已恢复为: ${
+            originalAutoPaginationState ? "开启" : "关闭"
+          }`
+        );
+        if (!originalAutoPaginationState) {
+          console.log("✂️ 内容裁剪模式保持激活，超出部分将继续被隐藏");
+        }
       } finally {
         this.paginationInProgress = false;
       }
@@ -1191,6 +1456,138 @@ export default {
       this.paginationWarnings = [];
     },
 
+    // 🎯 测试内容裁剪效果
+    testContentClipping() {
+      const currentPage =
+        this.pageSchema.pages[this.pageSchema.currentPageIndex];
+      if (!currentPage) return;
+
+      // 创建一个高度很大的测试组件
+      const testComponent = {
+        id: `test-clip-${Date.now()}`,
+        type: "layout",
+        columns: [{ width: 100 }],
+        children: [
+          {
+            id: `test-text-${Date.now()}`,
+            type: "text",
+            content:
+              "这是一个测试组件，用于验证内容裁剪效果。\n".repeat(50) +
+              "如果裁剪正常工作，这段文字的底部应该被隐藏，而不是显示在页面外。\n".repeat(
+                20
+              ),
+            style: {
+              fontSize: 14,
+              color: "#333",
+              textAlign: "left",
+              margin: { top: 10, bottom: 10, left: 10, right: 10 },
+              padding: { top: 10, bottom: 10, left: 10, right: 10 },
+              backgroundColor: "#f0f8ff",
+              borderRadius: 4,
+            },
+          },
+        ],
+        style: {
+          margin: { top: 10, bottom: 10, left: 10, right: 10 },
+          padding: { top: 10, bottom: 10, left: 10, right: 10 },
+          backgroundColor: "#ffe4e1",
+          borderRadius: 8,
+          minHeight: 800, // 设置一个很大的高度，确保超出页面
+        },
+        alignment: "flex-start",
+        verticalAlignment: "flex-start",
+      };
+
+      // 添加到当前页面
+      currentPage.components.push(testComponent);
+
+      // 保存并标记为已更改
+      this.saveToLocalStorage();
+      this.markAsChanged();
+
+      console.log("🧪 已添加测试组件，用于验证内容裁剪效果");
+      console.log("预期效果：组件的可见部分正常显示，超出页面高度的部分被隐藏");
+    },
+
+    // 页面管理方法
+    cleanupExtraPages() {
+      if (this.pageSchema.pages && this.pageSchema.pages.length > 1) {
+        console.log(
+          `🧹 清理多余页面: 从 ${this.pageSchema.pages.length} 页减少到 1 页`
+        );
+        this.pageSchema.pages = [this.pageSchema.pages[0]];
+        this.saveToLocalStorage();
+      }
+    },
+
+    // 测试高度调整计算
+    testHeightAdjustment() {
+      const pageConfig = this.pageSchema.pageConfig;
+      const originalWidth = pageConfig.pageSize.width;
+      const originalHeight = pageConfig.pageSize.height;
+      const componentCount = this.pageSchema.pages[0]?.components?.length || 0;
+      const baseExtraHeight = 50;
+      const dynamicExtraHeight = Math.min(componentCount * 5, 30);
+      const extraHeight = baseExtraHeight + dynamicExtraHeight;
+
+      console.group("🧮 高度调整计算测试");
+      console.log("原始尺寸:", `${originalWidth}×${originalHeight}mm`);
+      console.log("组件数量:", componentCount);
+      console.log("基础额外高度:", baseExtraHeight + "mm");
+      console.log("动态额外高度:", dynamicExtraHeight + "mm");
+      console.log("总额外高度:", extraHeight + "mm");
+      console.log(
+        "最终尺寸:",
+        `${originalWidth}×${originalHeight + extraHeight}mm`
+      );
+      console.log(
+        "高度增加比例:",
+        `${((extraHeight / originalHeight) * 100).toFixed(1)}%`
+      );
+      console.groupEnd();
+
+      return {
+        original: { width: originalWidth, height: originalHeight },
+        adjusted: {
+          width: originalWidth,
+          height: originalHeight + extraHeight,
+        },
+        extra: extraHeight,
+        components: componentCount,
+      };
+    },
+
+    // 智能清理空白页面
+    cleanupEmptyPages() {
+      if (!this.pageSchema.pages || this.pageSchema.pages.length <= 1) return;
+
+      const nonEmptyPages = this.pageSchema.pages.filter((page, index) => {
+        // 保留第一页
+        if (index === 0) return true;
+
+        // 检查页面是否有实际内容
+        return page.components && page.components.length > 0;
+      });
+
+      if (nonEmptyPages.length !== this.pageSchema.pages.length) {
+        console.log(
+          `🧹 智能清理: 从 ${this.pageSchema.pages.length} 页减少到 ${nonEmptyPages.length} 页`
+        );
+        this.pageSchema.pages = nonEmptyPages;
+
+        // 调整当前页面索引
+        if (this.pageSchema.currentPageIndex >= nonEmptyPages.length) {
+          this.pageSchema.currentPageIndex = Math.max(
+            0,
+            nonEmptyPages.length - 1
+          );
+        }
+
+        this.saveToLocalStorage();
+        this.markAsChanged();
+      }
+    },
+
     // HTML 导出相关方法
     generatePlaywrightHTML() {
       // 使用统一的转换器
@@ -1198,6 +1595,7 @@ export default {
         title: "页面设计导出",
         environment: "web",
         includeHeaderFooter: true,
+        singlePageOnly: true, // 只导出第一页，避免多页分页
       });
     },
 
@@ -1336,10 +1734,10 @@ export default {
       const size = config.pageSize;
       let width, height;
 
-      // 转换尺寸到像素 - 与Canvas.vue保持一致
+      // 转换尺寸到像素 - 使用统一的精确转换系数
       if (size.unit === "mm") {
-        width = size.width * 3.78; // 1mm ≈ 3.78px at 96dpi
-        height = size.height * 3.78;
+        width = size.width * 3.7795275591; // 精确转换系数 (96/25.4)
+        height = size.height * 3.7795275591;
       } else if (size.unit === "in") {
         width = size.width * 96; // 1in = 96px at 96dpi
         height = size.height * 96;
@@ -1348,11 +1746,11 @@ export default {
         height = size.height;
       }
 
-      // 计算页面内边距 - 与Canvas.vue的pageStyle保持一致
-      const paddingTop = config.margins.top * 3.78;
-      const paddingRight = config.margins.right * 3.78;
-      const paddingBottom = config.margins.bottom * 3.78;
-      const paddingLeft = config.margins.left * 3.78;
+      // 计算页面内边距 - 使用统一的精确转换系数
+      const paddingTop = config.margins.top * 3.7795275591;
+      const paddingRight = config.margins.right * 3.7795275591;
+      const paddingBottom = config.margins.bottom * 3.7795275591;
+      const paddingLeft = config.margins.left * 3.7795275591;
 
       return `
         * {
@@ -1736,7 +2134,7 @@ export default {
           style.padding.bottom
         }px ${style.padding.left}px;
           display: flex;
-          align-items: stretch;
+          align-items: ${component.verticalAlignment || "stretch"};
           justify-content: ${component.alignment || "flex-start"};
           min-height: ${style.minHeight || 60}px;
           gap: 8px;
@@ -1776,7 +2174,7 @@ export default {
           style.padding.bottom
         }px ${style.padding.left}px;
           display: flex;
-          align-items: stretch;
+          align-items: ${component.verticalAlignment || "stretch"};
           justify-content: ${component.alignment || "flex-start"};
           min-height: ${style.minHeight || 60}px;
           gap: 8px;
@@ -2076,6 +2474,192 @@ export default {
         localStorage.removeItem("importShareData");
       }
     },
+
+    // 草稿管理相关方法
+    openDraftManager() {
+      this.showDraftManager = true;
+    },
+
+    closeDraftManager() {
+      this.showDraftManager = false;
+    },
+
+    async handleLoadDraft(draft) {
+      try {
+        // 验证草稿数据
+        const validation = validateSchema(draft.schema);
+        if (validation.valid) {
+          this.pageSchema = draft.schema;
+          this.selectedComponent = null;
+          this.hasUnsavedChanges = true;
+
+          // 注意：加载草稿不改变自动保存草稿的ID
+          // 自动保存草稿保持独立，继续使用原有的自动保存草稿ID
+
+          // 清空历史记录并添加新的起点
+          historyManager.clear();
+          historyManager.addHistory(this.pageSchema);
+
+          console.log(`草稿 "${draft.name}" 已加载`);
+        } else {
+          throw new Error("草稿数据格式无效");
+        }
+      } catch (error) {
+        alert("加载草稿失败: " + error.message);
+      }
+    },
+
+    handleDraftSaved(draftId) {
+      // 注意：手动保存草稿不改变自动保存草稿的ID
+      // 自动保存草稿保持独立
+      console.log(`草稿已保存，ID: ${draftId}`);
+    },
+
+    handleSchemaCreated(schemaId) {
+      console.log(`草稿已转换为正式版本，ID: ${schemaId}`);
+      // 可以在这里添加其他处理逻辑，比如显示成功消息
+    },
+
+    // 初始化自动保存草稿
+    async initializeAutoSaveDraft() {
+      try {
+        // 检查是否已有自动保存草稿ID（从localStorage获取）
+        const savedAutoSaveDraftId = localStorage.getItem("autoSaveDraftId");
+
+        if (savedAutoSaveDraftId) {
+          // 验证草稿是否仍然存在
+          try {
+            await serverDraftManager.getDraftById(savedAutoSaveDraftId);
+            this.currentDraftId = savedAutoSaveDraftId;
+            console.log(`使用现有自动保存草稿，ID: ${savedAutoSaveDraftId}`);
+          } catch (error) {
+            // 草稿不存在，创建新的
+            console.log("现有自动保存草稿不存在，创建新的");
+            await this.createAutoSaveDraft();
+          }
+        } else {
+          // 创建新的自动保存草稿
+          await this.createAutoSaveDraft();
+        }
+
+        // 设置自动保存管理器的草稿ID并启用
+        this.draftAutoSaveManager.setCurrentDraftId(this.currentDraftId);
+        this.draftAutoSaveManager.enable();
+      } catch (error) {
+        console.error("初始化自动保存草稿失败:", error);
+      }
+    },
+
+    // 创建自动保存草稿
+    async createAutoSaveDraft() {
+      try {
+        const autoSaveDraftId = await serverDraftManager.saveDraft(
+          this.pageSchema,
+          "自动保存草稿"
+        );
+        this.currentDraftId = autoSaveDraftId;
+
+        // 保存到localStorage以便下次使用
+        localStorage.setItem("autoSaveDraftId", autoSaveDraftId);
+
+        console.log(`创建自动保存草稿成功，ID: ${autoSaveDraftId}`);
+        return autoSaveDraftId;
+      } catch (error) {
+        console.error("创建自动保存草稿失败:", error);
+        throw error;
+      }
+    },
+
+    // 草稿自动保存
+    async autosaveDraft(draftId) {
+      if (!this.hasUnsavedChanges) return;
+
+      try {
+        if (draftId && this.currentDraftId) {
+          // 更新现有的自动保存草稿
+          await serverDraftManager.updateDraft(
+            this.currentDraftId,
+            this.pageSchema
+          );
+          console.log(
+            `自动保存草稿更新成功，ID: ${
+              this.currentDraftId
+            }，时间: ${new Date().toLocaleTimeString()}`
+          );
+        } else {
+          // 如果没有自动保存草稿ID，创建一个
+          await this.createAutoSaveDraft();
+          this.draftAutoSaveManager.setCurrentDraftId(this.currentDraftId);
+          console.log(
+            `创建并保存自动草稿，ID: ${
+              this.currentDraftId
+            }，时间: ${new Date().toLocaleTimeString()}`
+          );
+        }
+      } catch (error) {
+        console.error("草稿自动保存失败:", error);
+      }
+    },
+
+    // 快速保存草稿
+    async quickSaveDraft() {
+      try {
+        const draftName = `快速保存_${new Date().toLocaleTimeString()}`;
+        const draftId = await serverDraftManager.saveDraft(
+          this.pageSchema,
+          draftName
+        );
+
+        // 注意：快速保存不改变自动保存草稿的ID
+        // 自动保存草稿保持独立，快速保存创建新的草稿
+
+        // 显示成功提示
+        this.showQuickMessage("草稿保存成功！", "success");
+        console.log(`快速保存草稿成功，ID: ${draftId}`);
+      } catch (error) {
+        this.showQuickMessage("保存草稿失败", "error");
+        console.error("快速保存草稿失败:", error);
+      }
+    },
+
+    // 切换自动保存状态
+    toggleAutoSave() {
+      this.draftAutoSaveEnabled = !this.draftAutoSaveEnabled;
+
+      if (this.draftAutoSaveEnabled) {
+        this.draftAutoSaveManager.enable(this.currentDraftId);
+        this.showQuickMessage("自动保存已开启", "info");
+      } else {
+        this.draftAutoSaveManager.disable();
+        this.showQuickMessage("自动保存已关闭", "warning");
+      }
+    },
+
+    // 显示快速消息提示
+    showQuickMessage(message, type = "info") {
+      // 创建临时提示元素
+      const toast = document.createElement("div");
+      toast.className = `quick-toast quick-toast-${type}`;
+      toast.textContent = message;
+
+      // 添加到页面
+      document.body.appendChild(toast);
+
+      // 显示动画
+      setTimeout(() => {
+        toast.classList.add("show");
+      }, 10);
+
+      // 自动移除
+      setTimeout(() => {
+        toast.classList.remove("show");
+        setTimeout(() => {
+          if (document.body.contains(toast)) {
+            document.body.removeChild(toast);
+          }
+        }, 300);
+      }, 2000);
+    },
   },
 };
 </script>
@@ -2107,26 +2691,53 @@ export default {
 
 .toolbar-center {
   display: flex;
-  gap: 8px;
+  gap: 12px;
+  align-items: center;
 }
 
 .toolbar-right {
   display: flex;
-  gap: 8px;
+  gap: 12px;
+  align-items: center;
 }
 
+/* 统一按钮基础样式 */
 .btn {
   padding: 8px 16px;
-  border: 1px solid #d0d0d0;
-  background: white;
-  border-radius: 4px;
+  border: 1px solid #d9d9d9;
+  background: #ffffff;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: center;
+  transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+  user-select: none;
+  touch-action: manipulation;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.015);
 }
 
 .btn:hover {
-  background: #f0f0f0;
+  background: #f5f5f5;
+  border-color: #40a9ff;
+  color: #40a9ff;
+}
+
+.btn:focus {
+  outline: none;
+  border-color: #40a9ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.btn:active {
+  background: #f5f5f5;
+  border-color: #096dd9;
 }
 
 .btn.active {
@@ -2135,15 +2746,162 @@ export default {
   border-color: #1890ff;
 }
 
+.btn.active:hover {
+  background: #40a9ff;
+  border-color: #40a9ff;
+}
+
+/* 主要按钮样式 */
+.btn.btn-primary {
+  background: #1890ff;
+  color: white;
+  border-color: #1890ff;
+}
+
+.btn.btn-primary:hover {
+  background: #40a9ff;
+  border-color: #40a9ff;
+  color: white;
+}
+
+/* 成功按钮样式 */
+.btn.btn-success,
 .btn.test-btn {
   background: #52c41a;
   color: white;
   border-color: #52c41a;
 }
 
+.btn.btn-success:hover,
 .btn.test-btn:hover {
   background: #73d13d;
   border-color: #73d13d;
+  color: white;
+}
+
+/* 草稿按钮样式 */
+.btn.btn-draft {
+  background: #722ed1;
+  color: white;
+  border-color: #722ed1;
+}
+
+.btn.btn-draft:hover {
+  background: #9254de;
+  border-color: #9254de;
+  color: white;
+}
+
+/* 分享按钮样式 */
+.btn.btn-share {
+  background: #13c2c2;
+  color: white;
+  border-color: #13c2c2;
+}
+
+.btn.btn-share:hover {
+  background: #36cfc9;
+  border-color: #36cfc9;
+  color: white;
+}
+
+/* 草稿快速操作工具栏 */
+.draft-quick-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  background: rgba(114, 46, 209, 0.08);
+  border-radius: 6px;
+  border: 1px solid rgba(114, 46, 209, 0.15);
+}
+
+.draft-quick-actions .btn {
+  height: 28px;
+  padding: 4px 12px;
+  font-size: 13px;
+  min-width: auto;
+}
+
+.btn.btn-draft-save {
+  background: #52c41a;
+  color: white;
+  border-color: #52c41a;
+}
+
+.btn.btn-draft-save:hover {
+  background: #73d13d;
+  border-color: #73d13d;
+  color: white;
+}
+
+.btn.btn-draft-auto {
+  background: #1890ff;
+  color: white;
+  border-color: #1890ff;
+  transition: all 0.3s ease;
+}
+
+.btn.btn-draft-auto:hover {
+  background: #40a9ff;
+  border-color: #40a9ff;
+  color: white;
+}
+
+.btn.btn-draft-auto.active {
+  background: #52c41a;
+  border-color: #52c41a;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(82, 196, 26, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(82, 196, 26, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(82, 196, 26, 0);
+  }
+}
+
+/* 快速提示样式 */
+:global(.quick-toast) {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 6px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10000;
+  transform: translateX(100%);
+  opacity: 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+:global(.quick-toast.show) {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+:global(.quick-toast-success) {
+  background: linear-gradient(135deg, #52c41a, #73d13d);
+}
+
+:global(.quick-toast-error) {
+  background: linear-gradient(135deg, #ff4d4f, #ff7875);
+}
+
+:global(.quick-toast-info) {
+  background: linear-gradient(135deg, #1890ff, #40a9ff);
+}
+
+:global(.quick-toast-warning) {
+  background: linear-gradient(135deg, #faad14, #ffc53d);
 }
 
 .editor-content {
@@ -2190,35 +2948,75 @@ export default {
   top: 100%;
   right: 0;
   background: white;
-  border: 1px solid #d0d0d0;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   z-index: 1000;
-  min-width: 120px;
+  min-width: 160px;
+  padding: 4px 0;
 }
 
 .export-menu button {
   display: block;
   width: 100%;
-  padding: 8px 12px;
+  padding: 8px 16px;
   border: none;
   background: none;
   text-align: left;
   cursor: pointer;
   font-size: 14px;
-  color: #333;
-  transition: background-color 0.2s;
+  font-weight: 400;
+  color: #262626;
+  transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+  line-height: 1.5;
 }
 
 .export-menu button:hover {
-  background: #f0f0f0;
+  background: #f5f5f5;
+  color: #1890ff;
 }
 
-.export-menu button:first-child {
-  border-radius: 4px 4px 0 0;
+.export-menu button:active {
+  background: #e6f7ff;
 }
 
-.export-menu button:last-child {
-  border-radius: 0 0 4px 4px;
+/* 🎯 内容处理模式指示器样式 */
+.content-mode-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.content-mode-indicator:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.indicator-icon {
+  font-size: 14px;
+}
+
+.indicator-text {
+  font-weight: 500;
+  color: #fff;
+}
+
+.indicator-desc {
+  color: #ccc;
+  font-size: 11px;
 }
 </style>
