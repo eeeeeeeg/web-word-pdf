@@ -98,28 +98,7 @@
             <path d="M11 2L12 3L5 10L2 10L2 7L9 0L11 2Z" fill="currentColor" />
           </svg>
         </button>
-        <button class="toolbar-btn" @click="handleCopy" title="复制">
-          <svg width="14" height="14" viewBox="0 0 14 14">
-            <rect
-              x="2"
-              y="2"
-              width="8"
-              height="8"
-              rx="1"
-              fill="none"
-              stroke="currentColor"
-            />
-            <rect
-              x="4"
-              y="4"
-              width="8"
-              height="8"
-              rx="1"
-              fill="none"
-              stroke="currentColor"
-            />
-          </svg>
-        </button>
+
         <button class="toolbar-btn delete" @click="handleDelete" title="删除">
           <svg width="14" height="14" viewBox="0 0 14 14">
             <path
@@ -284,11 +263,6 @@ export default {
     // 处理编辑
     handleEdit() {
       this.$emit("edit", this.component);
-    },
-
-    // 处理复制
-    handleCopy() {
-      this.$emit("copy", this.component);
     },
 
     // 优化的鼠标移动处理（使用 RAF 确保流畅动画）

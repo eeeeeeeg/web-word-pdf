@@ -28,7 +28,7 @@
         <button class="btn" @click="redo" :disabled="!canRedo" title="重做">
           ↷
         </button>
-        <button
+        <!-- <button
           class="btn"
           :class="{ active: autoPaginationEnabled }"
           @click="toggleAutoPagination"
@@ -39,17 +39,9 @@
           "
         >
           {{ autoPaginationEnabled ? "自动分页: 开" : "自动分页: 关" }}
-        </button>
+        </button> -->
 
         <!-- 🎯 调试按钮：测试内容裁剪效果 -->
-        <button
-          class="btn"
-          @click="testContentClipping"
-          title="添加测试组件验证内容裁剪效果"
-          style="background: #52c41a; color: white"
-        >
-          测试裁剪
-        </button>
         <button
           class="btn"
           @click="manualPagination"
@@ -85,21 +77,12 @@
         </div>
 
         <button class="btn btn-share" @click="openShareDialog">分享</button>
-        <button
-          v-if="mode === 'edit'"
-          class="btn test-btn"
-          @click="runPaginationTest"
-          title="测试分页功能"
-        >
-          测试分页
-        </button>
         <div class="export-dropdown">
           <button class="btn" @click="toggleExportMenu">导出 ▼</button>
           <div v-if="showExportMenu" class="export-menu">
-            <button @click="exportAsPDF">导出为 PDF (客户端)</button>
             <button @click="exportAsImage">导出为图片</button>
-            <button @click="exportAsWord">导出为 Word</button>
-            <button @click="exportAsHTML">导出为 HTML (Playwright)</button>
+            <!-- <button @click="exportAsWord">导出为 Word</button> -->
+            <button @click="exportAsHTML">导出为 PDF</button>
             <button @click="printPage">打印</button>
           </div>
         </div>
@@ -234,17 +217,12 @@ import {
   serverDraftManager,
   ServerDraftAutoSaveManager,
 } from "../utils/serverDraftManager.js";
-import {
-  PDFExportManager,
-  ImageExportManager,
-  PrintManager,
-} from "../utils/exportManager.js";
+import { ImageExportManager, PrintManager } from "../utils/exportManager.js";
 import {
   executeAutoPagination,
   shouldRepaginate,
 } from "../utils/autoPagination.js";
 import { createPageHeightObserver } from "../utils/componentMeasurer.js";
-import { runAllTests } from "../utils/paginationTest.js";
 import ComponentLibrary from "./ComponentLibrary.vue";
 import Canvas from "./Canvas.vue";
 import PropertyPanel from "./PropertyPanel.vue";
@@ -975,52 +953,6 @@ export default {
       this.showExportMenu = !this.showExportMenu;
     },
 
-    async exportAsPDF() {
-      this.showExportMenu = false;
-      try {
-        const canvasElement = this.$el.querySelector(".page");
-        if (!canvasElement) {
-          throw new Error("找不到页面元素");
-        }
-
-        const pageConfig = this.pageSchema.pageConfig;
-
-        // 🎯 计算调整后的页面尺寸，避免分页
-        const originalWidth = pageConfig.pageSize.width;
-        const originalHeight = pageConfig.pageSize.height;
-        const componentCount =
-          this.pageSchema.pages[0]?.components?.length || 0;
-        const baseExtraHeight = 50;
-        const dynamicExtraHeight = Math.min(componentCount * 5, 30);
-        const extraHeight = baseExtraHeight + dynamicExtraHeight;
-
-        console.log(
-          `📏 客户端PDF导出尺寸调整: ${originalWidth}×${originalHeight}mm → ${originalWidth}×${
-            originalHeight + extraHeight
-          }mm`
-        );
-
-        await PDFExportManager.exportToPDF(canvasElement, {
-          filename: `页面设计_${new Date().toLocaleDateString()}.pdf`,
-          format: "custom", // 使用自定义格式
-          width: originalWidth,
-          height: originalHeight + extraHeight,
-          orientation: pageConfig.pageSize.orientation || "portrait",
-          margin: Math.max(
-            pageConfig.margins.top,
-            pageConfig.margins.bottom,
-            pageConfig.margins.left,
-            pageConfig.margins.right
-          ),
-          quality: 1,
-        });
-
-        alert("PDF 导出成功！");
-      } catch (error) {
-        alert("PDF 导出失败: " + error.message);
-      }
-    },
-
     async exportAsImage() {
       this.showExportMenu = false;
       try {
@@ -1454,59 +1386,6 @@ export default {
       // 打开全局配置面板，让用户调整页边距
       this.showGlobalConfig = true;
       this.paginationWarnings = [];
-    },
-
-    // 🎯 测试内容裁剪效果
-    testContentClipping() {
-      const currentPage =
-        this.pageSchema.pages[this.pageSchema.currentPageIndex];
-      if (!currentPage) return;
-
-      // 创建一个高度很大的测试组件
-      const testComponent = {
-        id: `test-clip-${Date.now()}`,
-        type: "layout",
-        columns: [{ width: 100 }],
-        children: [
-          {
-            id: `test-text-${Date.now()}`,
-            type: "text",
-            content:
-              "这是一个测试组件，用于验证内容裁剪效果。\n".repeat(50) +
-              "如果裁剪正常工作，这段文字的底部应该被隐藏，而不是显示在页面外。\n".repeat(
-                20
-              ),
-            style: {
-              fontSize: 14,
-              color: "#333",
-              textAlign: "left",
-              margin: { top: 10, bottom: 10, left: 10, right: 10 },
-              padding: { top: 10, bottom: 10, left: 10, right: 10 },
-              backgroundColor: "#f0f8ff",
-              borderRadius: 4,
-            },
-          },
-        ],
-        style: {
-          margin: { top: 10, bottom: 10, left: 10, right: 10 },
-          padding: { top: 10, bottom: 10, left: 10, right: 10 },
-          backgroundColor: "#ffe4e1",
-          borderRadius: 8,
-          minHeight: 800, // 设置一个很大的高度，确保超出页面
-        },
-        alignment: "flex-start",
-        verticalAlignment: "flex-start",
-      };
-
-      // 添加到当前页面
-      currentPage.components.push(testComponent);
-
-      // 保存并标记为已更改
-      this.saveToLocalStorage();
-      this.markAsChanged();
-
-      console.log("🧪 已添加测试组件，用于验证内容裁剪效果");
-      console.log("预期效果：组件的可见部分正常显示，超出页面高度的部分被隐藏");
     },
 
     // 页面管理方法
@@ -2422,25 +2301,6 @@ export default {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    },
-
-    // 测试方法
-    async runPaginationTest() {
-      try {
-        console.log("开始运行分页测试...");
-        const results = await runAllTests();
-
-        const passedTests = results.filter((r) => r.validation?.passed).length;
-        const totalTests = results.length;
-
-        const message = `分页测试完成！\n通过: ${passedTests}/${totalTests}\n\n详细结果请查看控制台。`;
-        alert(message);
-
-        console.log("分页测试结果汇总:", results);
-      } catch (error) {
-        console.error("分页测试失败:", error);
-        alert("分页测试失败: " + error.message);
-      }
     },
 
     // 处理导入分享数据
