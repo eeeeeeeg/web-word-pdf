@@ -14,16 +14,20 @@
       <div
         v-if="mode === 'edit' && selected && isEditing"
         class="text-editor"
-        :style="textStyle"
+        :style="editorContainerStyle"
       >
-        <textarea
-          ref="textEditor"
-          v-model="editingContent"
-          :style="textareaStyle"
-          @blur="handleTextBlur"
-          @keydown="handleKeyDown"
-          @input="handleTextInput"
-        ></textarea>
+        <RichTextEditor
+          ref="richTextEditor"
+          :value="editingContent"
+          @input="handleRichTextInput"
+          @blur="handleRichTextBlur"
+          @focus="handleRichTextFocus"
+          :show-toolbar="true"
+          :min-height="'60px'"
+          :max-height="'400px'"
+          placeholder="请输入文本内容..."
+          class="free-text-rich-editor"
+        />
       </div>
 
       <!-- 显示模式 -->
@@ -40,11 +44,13 @@
 
 <script>
 import TransformController from "./TransformController.vue";
+import RichTextEditor from "./RichTextEditor.vue";
 
 export default {
   name: "FreeTextComponent",
   components: {
     TransformController,
+    RichTextEditor,
   },
   props: {
     component: {
@@ -71,9 +77,7 @@ export default {
       return {
         width: "100%",
         height: "100%",
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "flex-start",
+        display: "block",
         backgroundColor: this.component.style?.backgroundColor || "transparent",
         borderRadius: `${this.component.style?.borderRadius || 0}px`,
         overflow: "hidden",
@@ -102,22 +106,24 @@ export default {
         background: "transparent",
         resize: "none",
         overflow: "hidden",
+        whiteSpace: "normal",
       };
     },
-    textareaStyle() {
+    editorContainerStyle() {
       return {
-        ...this.textStyle,
-        resize: "none",
-        border: "1px solid #007bff",
-        borderRadius: "4px",
-        padding: "4px",
-        background: "rgba(255, 255, 255, 0.9)",
+        width: "100%",
+        height: "100%",
+        position: "relative",
+        zIndex: 1000,
+        boxSizing: "border-box",
+        margin: 0,
+        padding: 0,
       };
     },
     formattedContent() {
       const content = this.component.content || "请输入文本内容";
-      // 简单的换行处理
-      return content.replace(/\n/g, "<br>");
+      // tinymce已经输出HTML格式，直接返回
+      return content;
     },
   },
   watch: {
@@ -157,10 +163,12 @@ export default {
       this.editingContent = this.component.content || "";
 
       this.$nextTick(() => {
-        if (this.$refs.textEditor) {
-          this.$refs.textEditor.focus();
-          this.$refs.textEditor.select();
-        }
+        // 延迟一点时间确保 TinyMCE 完全初始化
+        setTimeout(() => {
+          if (this.$refs.richTextEditor) {
+            this.$refs.richTextEditor.focus();
+          }
+        }, 100);
       });
     },
 
@@ -171,25 +179,17 @@ export default {
       }
     },
 
-    handleTextBlur() {
+    handleRichTextInput(content) {
+      this.editingContent = content;
+      this.saveContent();
+    },
+
+    handleRichTextBlur() {
       this.stopEditing();
     },
 
-    handleKeyDown(event) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        this.editingContent = this.component.content || "";
-        this.stopEditing();
-      } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-        event.preventDefault();
-        this.stopEditing();
-      }
-      // 允许普通的 Enter 键用于换行
-    },
-
-    handleTextInput() {
-      // 实时更新内容（可选）
-      this.saveContent();
+    handleRichTextFocus() {
+      // 富文本编辑器获得焦点时的处理
     },
 
     saveContent() {
@@ -199,15 +199,6 @@ export default {
           content: this.editingContent,
         };
         this.$emit("update", updatedComponent);
-      }
-    },
-
-    // 自动调整文本区域大小
-    autoResize() {
-      if (this.$refs.textEditor) {
-        const textarea = this.$refs.textEditor;
-        textarea.style.height = "auto";
-        textarea.style.height = textarea.scrollHeight + "px";
       }
     },
   },
@@ -231,21 +222,21 @@ export default {
   word-wrap: break-word;
   word-break: break-word;
   white-space: pre-wrap;
-  display: flex;
-  align-items: flex-start;
+  display: block;
+  box-sizing: border-box;
 }
 
 .text-editor {
   width: 100%;
   height: 100%;
   position: relative;
+  z-index: 1000;
 }
 
-.text-editor textarea {
+.free-text-rich-editor {
   width: 100%;
   height: 100%;
-  min-height: 100%;
-  box-sizing: border-box;
+  min-height: 60px;
 }
 
 /* 预览模式下的样式 */
@@ -267,8 +258,47 @@ export default {
   border-radius: 4px;
 }
 
-/* 编辑状态的样式 */
-.text-editor textarea:focus {
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+/* 富文本编辑器样式优化 */
+.free-text-rich-editor ::v-deep .tox-tinymce {
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.free-text-rich-editor ::v-deep .tox-edit-area__iframe {
+  background: rgba(255, 255, 255, 0.95) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.free-text-rich-editor ::v-deep .tox-toolbar-overlord {
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.free-text-rich-editor ::v-deep .tox-toolbar__primary {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.free-text-rich-editor ::v-deep .tox-edit-area {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* 确保内联模式下的编辑器宽度 */
+.free-text-rich-editor ::v-deep .tox-tinymce-inline {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* 强制设置编辑器容器宽度 */
+.free-text-rich-editor ::v-deep .tox {
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 </style>

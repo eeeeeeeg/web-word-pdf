@@ -53,6 +53,7 @@ export default {
         license_key: "gpl",
         height: parseInt(this.minHeight),
         max_height: parseInt(this.maxHeight),
+        width: "100%",
         menubar: false,
         branding: false,
         inline: true,
@@ -166,17 +167,18 @@ export default {
         contextmenu: "link image table",
         setup: (editor) => {
           // 沉浸式编辑配置
+          const vm = this;
           editor.on("focus", () => {
-            this.onEditorFocus();
+            vm.onEditorFocus();
           });
 
           editor.on("blur", () => {
-            this.onEditorBlur();
+            vm.onEditorBlur();
           });
 
           editor.on("input change", () => {
-            this.content = editor.getContent();
-            this.$emit("input", this.content);
+            vm.content = editor.getContent();
+            vm.$emit("input", vm.content);
           });
         },
       },
@@ -208,13 +210,26 @@ export default {
     },
     setContent(content) {
       this.content = content;
-      if (this.$refs.tinyEditor) {
-        this.$refs.tinyEditor.setContent(content);
+      if (this.$refs.tinyEditor && this.$refs.tinyEditor.editor) {
+        this.$refs.tinyEditor.editor.setContent(content);
       }
     },
     focus() {
-      if (this.$refs.tinyEditor) {
-        this.$refs.tinyEditor.focus();
+      // 确保编辑器已经初始化
+      const tryFocus = () => {
+        if (this.$refs.tinyEditor && this.$refs.tinyEditor.editor) {
+          this.$refs.tinyEditor.editor.focus();
+          return true;
+        }
+        return false;
+      };
+
+      // 立即尝试
+      if (!tryFocus()) {
+        // 如果失败，延迟重试
+        setTimeout(() => {
+          tryFocus();
+        }, 100);
       }
     },
   },
@@ -234,6 +249,9 @@ export default {
 
 .rich-text-editor {
   background: inherit;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 /* TinyMCE 编辑器样式优化 */
@@ -242,23 +260,33 @@ export default {
   border-radius: 4px;
   position: relative;
   z-index: 1001;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .rich-text-editor ::v-deep .tox-toolbar-overlord {
   background: #f9f9f9;
   border-bottom: 1px solid #ddd;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .rich-text-editor ::v-deep .tox-toolbar__primary {
   background: transparent;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .rich-text-editor ::v-deep .tox-edit-area {
   border: none;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .rich-text-editor ::v-deep .tox-edit-area__iframe {
   background: white;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 /* 工具栏按钮样式 */

@@ -6,6 +6,7 @@
       'preview-mode': mode === 'preview',
       dragging: isDragging,
       'layout-component-wrapper': component.type === 'layout',
+      'free-component-wrapper': isFreeComponent,
     }"
     :data-drag-position="dragOverPosition"
     :data-component-id="component.id"
@@ -375,7 +376,6 @@ export default {
     textDisplayStyle() {
       return {
         width: "100%",
-        minHeight: "60px",
         padding: "0px",
         lineHeight: "1.5",
         fontFamily: "Arial, sans-serif",
@@ -973,6 +973,12 @@ export default {
   position: relative;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+/* 自由组件使用绝对定位，不参与文档流 */
+.canvas-component.free-component-wrapper {
+  position: static; /* 让TransformController的absolute定位生效 */
+  display: contents; /* 不影响布局流 */
 }
 
 /* 预览模式下禁用hover和选中效果 */

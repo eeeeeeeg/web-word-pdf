@@ -76,12 +76,32 @@ class PDFExportService {
         preferCSSPageSize: this.parseBoolean(options.preferCSSPageSize, false),
       };
 
-      // 处理页面格式 - 支持标准格式和自定义尺寸
-      const formatResult = this.handlePageFormat(
-        options.format || "A4",
-        options
+      // 🎯 直接检查传入的宽高参数
+      if (options.width && options.height) {
+        // 直接使用传入的宽高，不走handlePageFormat逻辑
+        pdfOptions.width = options.width;
+        pdfOptions.height = options.height;
+        // 确保删除format属性，避免冲突
+        delete pdfOptions.format;
+        console.log(
+          `[${taskId}] 🎯 直接应用传入尺寸: ${options.width} x ${options.height}`
+        );
+      } else {
+        // 没有自定义尺寸，使用标准格式处理
+        const formatResult = this.handlePageFormat(
+          options.format || "A4",
+          options
+        );
+        Object.assign(pdfOptions, formatResult);
+        console.log(
+          `[${taskId}] 📄 使用标准格式处理: ${JSON.stringify(formatResult)}`
+        );
+      }
+
+      console.log(
+        `[${taskId}] 最终PDF选项:`,
+        JSON.stringify(pdfOptions, null, 2)
       );
-      Object.assign(pdfOptions, formatResult);
 
       // 生成PDF
       const pdfBuffer = await page.pdf(pdfOptions);
@@ -302,31 +322,68 @@ class PDFExportService {
 
     // 如果提供了自定义尺寸
     if (options.width && options.height) {
-      const unit = options.unit || "mm";
+      console.log(`🔍 检测到自定义尺寸参数:`, {
+        width: options.width,
+        height: options.height,
+      });
 
-      // 使用统一的转换算法处理自定义尺寸
-      let widthMm, heightMm;
+      // 解析宽度和高度，支持带单位的字符串
+      const parseSize = (sizeStr) => {
+        if (typeof sizeStr === "number") {
+          return { value: sizeStr, unit: "mm" }; // 默认单位
+        }
 
-      if (unit === "px") {
-        // px转mm
-        widthMm = options.width / MM_TO_PX;
-        heightMm = options.height / MM_TO_PX;
-      } else {
-        // 默认为mm或其他单位直接使用
-        widthMm = parseFloat(options.width);
-        heightMm = parseFloat(options.height);
-      }
+        const str = String(sizeStr);
+        const match = str.match(/^(\d+(?:\.\d+)?)(mm|px|in|cm)?$/);
+        if (match) {
+          return {
+            value: parseFloat(match[1]),
+            unit: match[2] || "mm",
+          };
+        }
+
+        // 如果解析失败，尝试直接转换为数字
+        const numValue = parseFloat(str);
+        if (!isNaN(numValue)) {
+          return { value: numValue, unit: "mm" };
+        }
+
+        throw new Error(`无法解析尺寸: ${sizeStr}`);
+      };
+
+      const widthInfo = parseSize(options.width);
+      const heightInfo = parseSize(options.height);
+
+      console.log(`📏 解析后的尺寸:`, { width: widthInfo, height: heightInfo });
+
+      // 统一转换为毫米
+      const convertToMm = (value, unit) => {
+        switch (unit) {
+          case "px":
+            return value / MM_TO_PX;
+          case "in":
+            return value * 25.4; // 1英寸 = 25.4毫米
+          case "cm":
+            return value * 10; // 1厘米 = 10毫米
+          case "mm":
+          default:
+            return value;
+        }
+      };
+
+      const widthMm = convertToMm(widthInfo.value, widthInfo.unit);
+      const heightMm = convertToMm(heightInfo.value, heightInfo.unit);
 
       const customSize = {
         width: `${widthMm}mm`,
         height: `${heightMm}mm`,
         widthPx: Math.round(widthMm * MM_TO_PX),
         heightPx: Math.round(heightMm * MM_TO_PX),
-        unit: unit,
+        unit: "mm", // 统一使用mm作为输出单位
         original: { width: options.width, height: options.height },
       };
 
-      console.log(`使用自定义尺寸:`, customSize);
+      console.log(`✅ 最终自定义尺寸配置:`, customSize);
       return customSize;
     }
 

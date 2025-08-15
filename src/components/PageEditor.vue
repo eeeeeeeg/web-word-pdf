@@ -87,6 +87,9 @@
             <button @click="exportAsHTML" :disabled="isExporting">
               {{ isExporting ? "📄 导出中..." : "导出为 PDF" }}
             </button>
+            <button @click="exportCustomSizePDF" :disabled="isExporting">
+              {{ isExporting ? "📄 导出中..." : "导出自定义尺寸PDF" }}
+            </button>
             <button @click="printPage" :disabled="isExporting">打印</button>
           </div>
         </div>
@@ -1006,7 +1009,7 @@ export default {
       }
     },
 
-    async exportAsHTML() {
+    async exportAsHTML(customWidth = null, customHeight = null, unit = "mm") {
       if (this.isExporting) return;
 
       this.showExportMenu = false;
@@ -1044,7 +1047,6 @@ export default {
           displayHeaderFooter: false, // 不使用单独的页眉页脚模板
           headerTemplate: "",
           footerTemplate: "",
-          format: pageConfig.pageSize.preset || "A4",
           orientation: pageConfig.pageSize.orientation || "portrait",
           margin: {
             top: `${margins.top}mm`,
@@ -1056,28 +1058,57 @@ export default {
           scale: 1,
         };
 
-        // 🎯 始终设置自定义尺寸，增加高度避免分页精度问题
-        const originalWidth = pageConfig.pageSize.width;
-        const originalHeight = pageConfig.pageSize.height;
+        // 🎯 只有在没有自定义尺寸时才设置format
+        if (customWidth === null || customHeight === null) {
+          exportOptions.format = pageConfig.pageSize.preset || "A4";
+        }
 
-        // 智能计算额外高度：基础50mm + 根据组件数量动态调整
-        const componentCount =
-          this.pageSchema.pages[0]?.components?.length || 0;
-        const baseExtraHeight = 50; // 基础额外高度
-        const dynamicExtraHeight = Math.min(componentCount * 5, 30); // 每个组件增加5mm，最多30mm
-        const extraHeight = baseExtraHeight + dynamicExtraHeight;
+        // 🎯 处理尺寸设置 - 支持自定义宽高参数
+        let finalWidth, finalHeight;
 
-        exportOptions.width = `${originalWidth}mm`;
-        exportOptions.height = `${originalHeight + extraHeight}mm`;
+        if (customWidth !== null && customHeight !== null) {
+          // 使用传入的自定义尺寸
+          finalWidth = customWidth;
+          finalHeight = customHeight;
 
-        console.log(
-          `📏 导出尺寸调整: 原始 ${originalWidth}×${originalHeight}mm → 导出 ${originalWidth}×${
-            originalHeight + extraHeight
-          }mm (组件数: ${componentCount}, 额外高度: ${extraHeight}mm)`
-        );
+          console.log(
+            `📏 使用自定义导出尺寸: ${finalWidth}×${finalHeight}${unit}`
+          );
+        } else {
+          // 使用页面配置的尺寸，并智能调整高度
+          const originalWidth = pageConfig.pageSize.width;
+          const originalHeight = pageConfig.pageSize.height;
 
-        // 移除format选项，使用自定义尺寸
-        delete exportOptions.format;
+          // 智能计算额外高度：基础50mm + 根据组件数量动态调整
+          const componentCount =
+            this.pageSchema.pages[0]?.components?.length || 0;
+          const baseExtraHeight = 50; // 基础额外高度
+          const dynamicExtraHeight = Math.min(componentCount * 5, 30); // 每个组件增加5mm，最多30mm
+          const extraHeight = baseExtraHeight + dynamicExtraHeight;
+
+          finalWidth = originalWidth;
+          finalHeight = originalHeight + extraHeight;
+
+          console.log(
+            `📏 导出尺寸调整: 原始 ${originalWidth}×${originalHeight}mm → 导出 ${finalWidth}×${finalHeight}mm (组件数: ${componentCount}, 额外高度: ${extraHeight}mm)`
+          );
+        }
+
+        // 应用横向纵向设置 - 如果是横向，交换宽高
+        const orientation = pageConfig.pageSize.orientation || "portrait";
+        if (orientation === "landscape") {
+          // 横向时交换宽高
+          [finalWidth, finalHeight] = [finalHeight, finalWidth];
+          console.log(
+            `📏 横向模式，交换宽高: ${finalWidth}×${finalHeight}${unit}`
+          );
+        }
+
+        // 设置最终的导出尺寸
+        exportOptions.width = `${finalWidth}${unit}`;
+        exportOptions.height = `${finalHeight}${unit}`;
+
+        console.log(`🎯 最终导出选项:`, JSON.stringify(exportOptions, null, 2));
 
         await exportPDF(htmlContent, exportOptions);
         // 可选：同时导出HTML文件用于调试
@@ -1092,6 +1123,28 @@ export default {
       } finally {
         this.isExporting = false;
       }
+    },
+
+    // 测试自定义尺寸PDF导出
+    async exportCustomSizePDF() {
+      // 使用页面配置的实际尺寸进行测试
+      const pageConfig = this.pageSchema.pageConfig;
+      let width = pageConfig.pageSize.width;
+      let height = pageConfig.pageSize.height;
+      // if (pageConfig.pageSize.orientation) {
+      //   height = pageConfig.pageSize.width;
+      //   width = pageConfig.pageSize.height;
+      // }
+
+      const unit = pageConfig.pageSize.unit || "mm";
+
+      console.log(`🧪 测试自定义尺寸导出: ${width}x${height}${unit}`);
+      await this.exportAsHTML(width, height, unit);
+    },
+
+    // 通用的PDF导出方法，支持外部调用
+    async exportPDFWithCustomSize(width, height, unit = "mm") {
+      return await this.exportAsHTML(width, height, unit);
     },
 
     printPage() {

@@ -1500,16 +1500,11 @@ export class SchemaToHtmlConverter {
 
     // 构建文本内容样式
     const textStyle = this.buildFreeTextContentStyle(style);
-
     // 处理文本内容，支持换行
-    const content = (component.content || "请输入文本内容").replace(
-      /\n/g,
-      "<br>"
-    );
-
+    const content = component.content || "请输入文本内容";
     return `
       <div class="free-text-component" style="${containerStyle}">
-        <div class="free-text-content" style="${textStyle}">
+        <div class="free-text-content text-display" style="${textStyle}">
           ${content}
         </div>
       </div>
@@ -1613,9 +1608,8 @@ export class SchemaToHtmlConverter {
       `text-decoration: ${style.textDecoration || "none"}`,
       "width: 100%",
       "height: 100%",
-      "display: flex",
-      "align-items: flex-start",
-      "justify-content: flex-start",
+      "display: block",
+      "white-space: normal;",
       "padding: 8px",
       "box-sizing: border-box",
       "overflow: hidden",

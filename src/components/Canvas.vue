@@ -196,6 +196,8 @@ export default {
         const size = config.pageSize;
         const page = this.schema.pages[pageIndex];
 
+        console.log("pageStyle 计算:", size, page);
+
         // 转换尺寸到像素 - 使用统一的转换系数
         let width, height;
         if (size.unit === "mm") {
@@ -781,7 +783,7 @@ export default {
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* gap: 8px; */
   /* 🎯 Canva 风格：完全隐藏超出页面边界的内容，不显示滚动条 */
   overflow: hidden;
   /* 确保裁剪边界清晰 */
